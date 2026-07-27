@@ -4,3 +4,4 @@ esp-inference/.vscode/
 esp-inference/managed_components
 esp-inference/main/connection/connection.h
 **/__pycache__/
+dockerdata/

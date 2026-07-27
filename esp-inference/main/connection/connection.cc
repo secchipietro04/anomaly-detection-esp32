@@ -29,22 +29,28 @@ void connect_to_wifi() {
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "Connecting to Wi-Fi...");
+    ESP_LOGI(TAG, "Connecting to Wi-Fi.. .");
     ESP_ERROR_CHECK(esp_wifi_connect());
 }
 #define MAX_HTTP_OUTPUT_BUFFER 4096
 
 void http_rest_with_url() {
-    char output_buffer[MAX_HTTP_OUTPUT_BUFFER] = {
-        0};  // Buffer to store response of http request
+    char *output_buffer =
+        (char *)malloc(MAX_HTTP_OUTPUT_BUFFER);  // Buffer to store response
+    if (!output_buffer) {
+        ESP_LOGE(TAG, "Failed to allocate HTTP response buffer");
+        return;
+    }
+    memset(output_buffer, 0, MAX_HTTP_OUTPUT_BUFFER);
     int content_length = 0;
     int track_length = 0;
     int max_buff = 2048;
     esp_http_client_config_t config = {
-        .url = "http://192.168.43.132:3253/dataframe",  // URL for GET request
+        .url = "http://" SERVER_IP ":" STR(SERVER_PORT) "/dataframe",  // URL for GET request
         .timeout_ms = 5000,  // Timeout value in milliseconds
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
+    ESP_LOGI(TAG, "HTTP GET request to: %s", config.url);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
@@ -80,10 +86,17 @@ void http_rest_with_url() {
         }
     }
     esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    free(output_buffer);
 }
 char *post_dataframe() {
-    char output_buffer[MAX_HTTP_OUTPUT_BUFFER] = {
-        0};  // Buffer to store response of HTTP request
+    char *output_buffer =
+        (char *)malloc(MAX_HTTP_OUTPUT_BUFFER);  // Buffer to store response
+    if (!output_buffer) {
+        ESP_LOGE(TAG, "Failed to allocate HTTP response buffer");
+        return NULL;
+    }
+    memset(output_buffer, 0, MAX_HTTP_OUTPUT_BUFFER);
     int content_length = 0;
     int track_length = 0;
     int max_buff = 2048;
@@ -98,6 +111,11 @@ char *post_dataframe() {
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to initialize HTTP client");
+        free(output_buffer);
+        return NULL;
+    }
 
     // Set HTTP method to POST
     esp_http_client_set_method(client, HTTP_METHOD_POST);
@@ -110,6 +128,7 @@ char *post_dataframe() {
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s",
                  esp_err_to_name(err));
         esp_http_client_cleanup(client);
+        free(output_buffer);
         return NULL;
     } else {
         content_length = esp_http_client_fetch_headers(client);
@@ -124,6 +143,7 @@ char *post_dataframe() {
                 ESP_LOGE(TAG, "Failed to allocate memory for response buffer");
                 esp_http_client_close(client);
                 esp_http_client_cleanup(client);
+                free(output_buffer);
                 return NULL;
             }
 
@@ -144,6 +164,7 @@ char *post_dataframe() {
                     free(response);
                     esp_http_client_close(client);
                     esp_http_client_cleanup(client);
+                    free(output_buffer);
                     return NULL;
                 }
             } while (track_length > 0);
@@ -153,6 +174,7 @@ char *post_dataframe() {
 
             esp_http_client_close(client);
             esp_http_client_cleanup(client);
+            free(output_buffer);
 
             return response;  // Caller is responsible for freeing this memory
         }
@@ -160,12 +182,18 @@ char *post_dataframe() {
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
+    free(output_buffer);
     return NULL;
 }
 
 int post_dataframe_id(const char *id, int *array, size_t len) {
-    char output_buffer[MAX_HTTP_OUTPUT_BUFFER] = {
-        0};  // Buffer to store response of HTTP request
+    char *output_buffer =
+        (char *)malloc(MAX_HTTP_OUTPUT_BUFFER);  // Buffer to store response
+    if (!output_buffer) {
+        ESP_LOGE(TAG, "Failed to allocate HTTP response buffer");
+        return -1;
+    }
+    memset(output_buffer, 0, MAX_HTTP_OUTPUT_BUFFER);
     int content_length = 0;
     int track_length = 0;
     int max_buff = 128;  // read buffer
@@ -185,16 +213,25 @@ int post_dataframe_id(const char *id, int *array, size_t len) {
                                HTTP_METHOD_POST);  // Set HTTP method to POST
 
     // Build the payload from the array
-    char payload[DATAFRAME_PAYLOAD_LENGTH] = {0};  // Adjust size as needed
+    char *payload = (char *)malloc(DATAFRAME_PAYLOAD_LENGTH);
+    if (!payload) {
+        ESP_LOGE(TAG, "Failed to allocate payload buffer");
+        esp_http_client_cleanup(client);
+        free(output_buffer);
+        return -1;
+    }
+    memset(payload, 0, DATAFRAME_PAYLOAD_LENGTH);
     size_t pos = 0;
 
     for (size_t i = 0; i < len; i += 3) {
-        pos += snprintf(payload + pos, sizeof(payload) - pos, "%d,%d,%d\n",
+        pos += snprintf(payload + pos, DATAFRAME_PAYLOAD_LENGTH - pos, "%d,%d,%d\n",
                         array[i], array[i + 1], array[i + 2]);
 
-        if (pos >= sizeof(payload)) {
+        if (pos >= DATAFRAME_PAYLOAD_LENGTH) {
             ESP_LOGE(TAG, "Payload buffer overflow");
             esp_http_client_cleanup(client);
+            free(payload);
+            free(output_buffer);
             return -1;
         }
     }
@@ -210,6 +247,8 @@ int post_dataframe_id(const char *id, int *array, size_t len) {
         esp_http_client_close(client);
 
         esp_http_client_cleanup(client);
+        free(payload);
+        free(output_buffer);
         return -1;
     }
     int length_written =
@@ -219,6 +258,8 @@ int post_dataframe_id(const char *id, int *array, size_t len) {
                  esp_err_to_name(err));
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        free(payload);
+        free(output_buffer);
         return -1;
     }
     // Fetch response headers and process server response
@@ -229,6 +270,8 @@ int post_dataframe_id(const char *id, int *array, size_t len) {
         ESP_LOGE(TAG, "HTTP client fetch headers failed");
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        free(payload);
+        free(output_buffer);
         return -1;
     }
 
@@ -256,18 +299,27 @@ int post_dataframe_id(const char *id, int *array, size_t len) {
             ESP_LOGE(TAG, "Failed to read server response");
             esp_http_client_close(client);
             esp_http_client_cleanup(client);
+            free(payload);
+            free(output_buffer);
             return -1;
         }
     } while (track_length > 0);
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
+    free(payload);
+    free(output_buffer);
 
     return response_number;  // Return the parsed server response
 }
 
 int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_t len) {
-    char output_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};  // Buffer for HTTP response
+    char *output_buffer = (char *)malloc(MAX_HTTP_OUTPUT_BUFFER);  // Buffer for HTTP response
+    if (!output_buffer) {
+        ESP_LOGE(TAG, "Failed to allocate HTTP response buffer");
+        return -1;
+    }
+    memset(output_buffer, 0, MAX_HTTP_OUTPUT_BUFFER);
     int content_length = 0;
     int data_read = -1;
 
@@ -282,6 +334,11 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to initialize HTTP client");
+        free(output_buffer);
+        return -1;
+    }
     esp_http_client_set_method(client, HTTP_METHOD_GET);  // Set HTTP method to GET
 
     // Open the HTTP connection
@@ -290,6 +347,7 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        free(output_buffer);
         return -1;
     }
 
@@ -299,6 +357,7 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
         ESP_LOGE(TAG, "HTTP client fetch headers failed");
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
+        free(output_buffer);
         return -1;
     }
     ESP_LOGI(TAG, "Content length: %d, buffer size: %zu", content_length, len);
@@ -324,6 +383,7 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
                 ESP_LOGE(TAG, "Buffer overflow risk, aborting");
                 esp_http_client_close(client);
                 esp_http_client_cleanup(client);
+                free(output_buffer);
                 return -1;
             }
 
@@ -333,6 +393,7 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
             ESP_LOGE(TAG, "Failed to read server response");
             esp_http_client_close(client);
             esp_http_client_cleanup(client);
+            free(output_buffer);
             return -1;
         }
     } while (content_length == -1 || total_data_read < content_length);
@@ -343,6 +404,7 @@ int get_model_dataframe(const char *id, const char *end_dec, char *buffer, size_
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
+    free(output_buffer);
 
     return total_data_read;  // Return the total number of bytes read
 }

@@ -1,0 +1,56 @@
+
+
+Table "sensor" {
+  "id" INT [pk]
+  "settings" VARCHAR(1024)
+}
+
+Table "datapoint_schema" {
+  "schema_name" VARCHAR(255) [pk]
+  "description" TEXT
+  "definition" TEXT [not null] //csv
+}
+
+Table "datapoint" {
+  "id" INT [pk]
+  "from_time" TIMESTAMP
+  "to_time" TIMESTAMP
+  "sensor_id" INT [not null]
+  "datapoint_schema" varchar(255) [not null]
+  "data" TEXT //csv
+}
+
+Table "ensemble" {
+  "id" INT [pk]
+  "timestamp_training_date" TIMESTAMP
+  "type" VARCHAR(100)
+  "sensibility" REAL
+}
+
+Table "model" {
+  "id" INT [pk]
+  "model_data" BYTEA
+  "info" TEXT
+}
+
+Table "result" {
+  "timestamp" TIMESTAMP
+  "score" NUMERIC
+  "alert" BOOLEAN
+  "sensor_id" INT [not null]
+  "model_id" INT [not null]
+
+  Indexes {
+    (sensor_id, model_id, timestamp) [pk]
+  }
+}
+
+Ref: "sensor"."id" < "datapoint"."sensor_id" [delete: cascade]
+
+Ref: "datapoint_schema"."schema_name" < "datapoint"."datapoint_schema" [delete: restrict]
+
+Ref: "ensemble"."id" < "model"."id" [delete: cascade]
+
+Ref: "sensor"."id" < "result"."sensor_id" [delete: cascade]
+
+Ref: "ensemble"."id" < "result"."model_id" [delete: cascade]

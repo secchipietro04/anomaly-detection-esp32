@@ -9,8 +9,8 @@
 #define I2C_MASTER_NUM I2C_NUM_0
 // #define I2C_MASTER_SCL_IO 42
 // #define I2C_MASTER_SDA_IO 41
-#define I2C_MASTER_SCL_IO 10
-#define I2C_MASTER_SDA_IO 9
+#define I2C_MASTER_SCL_IO (gpio_num_t)10
+#define I2C_MASTER_SDA_IO (gpio_num_t)9
 
 // 370370 Hz is the maximum frequency for the ISM330BX (even with 2.2k pull-up resistors)
 // using 350 kHz to be safe

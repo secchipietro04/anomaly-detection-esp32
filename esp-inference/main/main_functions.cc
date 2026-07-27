@@ -255,7 +255,7 @@ void loop() {
                 dataframes[i].dataframe_id = post_dataframe();
                 if (!dataframes[i].dataframe_id) {
                     ESP_LOGE(TAG, "Failed to create dataframe");
-                    return;
+                    continue;
                 }
                 ESP_LOGI(TAG, "Created DataFrame ID: %s", dataframes[i].dataframe_id);
             }
