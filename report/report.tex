@@ -1,0 +1,203 @@
+% !TeX spellcheck = it_IT
+%
+% ---------------------------------------------------------------------
+%                 
+%              UniVR CS Implementazione di Modelli TinyML su ESP32 per il Rilevamento di Anomalie da Dati Vibrazionali con Infrastruttura Backend Centralizzata.  2025/2026
+%                                   AUTHORS:
+%                           
+%           VR501217 Pietro Giampaolo Secchi
+% ---------------------------------------------------------------------
+%
+
+
+\documentclass[a4paper,11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8x]{inputenc}
+\usepackage{hyperref} 
+\usepackage[italian]{babel}
+\usepackage{amsmath}
+\usepackage{calc}
+\usepackage[a4paper]{geometry}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{fancyhdr} % Required for custom headers
+\usepackage{lastpage} % Required to determine the last page for the footer
+\usepackage{extramarks} % Required for headers and footers
+\usepackage{needspace}
+%\usepackage[usenames,dvipsnames]{color} % Required for custom colors
+\usepackage{graphicx} % Required to insert images
+\usepackage{listings} % Required for insertion of code
+\usepackage{courier} % Required for the courier font
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{mdframed}
+\usepackage{enumitem}
+\usepackage{minted}
+\usepackage{float}
+\renewcommand\listingscaption{}
+\newcommand\ceil[1]{\lceil#1\rceil}
+\usepackage{zi4}
+\usepackage{tikz}
+
+\usetikzlibrary{automata, positioning, arrows,trees,arrows.meta}
+\usepackage{verbatim}
+\usepackage{url}
+\usepackage{doi}
+\usepackage{hyperref} % Required to create hyperlinks
+\usepackage{booktabs} % better tables
+
+\usepackage{forest}
+
+% Setting up hyperlinks settings
+\newcommand\myshade{85}
+\colorlet{mylinkcolor}{blue}
+\colorlet{mycitecolor}{YellowOrange}
+\colorlet{myurlcolor}{Blue}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	citecolor=blue,
+	urlcolor=blue
+}
+
+
+% Setting up tikz attributes globally
+\tikzset{
+	->, % makes the edges directed
+	>=stealth', % makes the arrow heads bold
+	node distance=5.5cm, % specifies the minimum distance between two nodes. Change if necessary.
+	every state/.style={thick, fill=gray!10}, % sets the properties for each 'state' node
+	initial text=play, % sets the text that appears on the start arrow
+	initial distance=2.1cm,
+}
+
+\newenvironment{framescelte}[1]
+{\mdfsetup{
+		frametitle={\colorbox{white}{\space#1\space}},
+		innertopmargin=6pt,
+		frametitleaboveskip=-\ht\strutbox,
+		frametitlealignment=\center
+	}
+	\begin{mdframed}%
+	}
+	{\end{mdframed}}
+
+\newenvironment{framescelte2}[1]
+{%
+	\mdfsetup{
+		frametitle={\colorbox{white}{\space#1\space}},
+		innertopmargin=6pt,
+		frametitleaboveskip=-\ht\strutbox,
+		frametitlealignment=\center,
+		skipabove=\baselineskip,
+		skipbelow=\baselineskip,
+		nobreak=true % <- prevents page breaks inside the frame
+	}%
+	\begin{mdframed}
+	}
+	{\end{mdframed}}
+
+
+% Margins
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.25in
+\textheight=9in
+\headsep=0.25in
+
+\linespread{1.1} % Line spacing
+
+
+% Set up the header and footer
+\pagestyle{fancy}
+%\lhead{\hmwkAuthorName} % Top left header
+\chead{} % Top center head
+\rhead{\hmwkTitle} % Top right header
+%\cfoot{} % Bottom center footer
+%\rfoot{Page\ \thepage\ of\ \protect\pageref{LastPage}} % Bottom right footer
+\renewcommand\headrulewidth{0.4pt} % Size of the header rule
+\renewcommand\footrulewidth{0.4pt} % Size of the footer rule
+
+%------------------------------------------------------------------------------------
+%	TITOLO
+%------------------------------------------------------------------------------------
+%----------------------------------------------------------------------------------------
+%	NAME AND CLASS SECTION
+%----------------------------------------------------------------------------------------
+
+\newcommand{\hmwkTitle}{Implementazione di Modelli TinyML su ESP32 per il Rilevamento di Anomalie da Dati Vibrazionali con Infrastruttura Backend Centralizzata}
+\newcommand{\insertLogo}[1][2cm]{\includegraphics[width=#1]{assets/images/LogoUniversitàVerona.png}}
+\newcommand{\hmwkClass}{Tesi di laurea triennale}
+\newcommand{\hmwkAuthorName}{Pietro Giampaolo Secchi (VR501217)}
+
+%------------------------------------------------------------------------------------
+%	TITLE PAGE
+%------------------------------------------------------------------------------------
+
+
+\title{
+	\insertLogo[8cm] \\
+	\vspace{0.7in}
+	\textmd{\textbf{\hmwkClass:\\ \hmwkTitle}}\\
+	\vspace{0.1in}\large{\textit{\hmwkAuthorName}}
+	\date{}
+}
+
+
+%\author{}
+
+%------------------------------------------------------------------------------------
+
+
+%------------------------------------------------------------------------------------
+%	FORMATTAZIONE ELEMENTI
+%------------------------------------------------------------------------------------
+\renewcommand*{\ttdefault}{zi4}
+\newcommand{\stato}[1]{\textbf{\fontfamily{zi4}\selectfont #1}}
+\newcommand{\signin}[1]{\textcolor{Blue}{\fontfamily{zi4}\selectfont #1}}
+\newcommand{\signout}[1]{\textcolor{BrickRed}{\fontfamily{zi4}\selectfont #1}}
+\newcommand{\inctxt}[1]{\textit{\fontfamily{zi4}\selectfont #1}}
+%------------------------------------------------------------------------------------
+
+
+\lstdefinestyle{BashStyle}{
+	language=bash,
+	basicstyle=\ttfamily,
+	numbers=left,
+	numberstyle=\tiny\ttfamily\color{black},
+	numbersep=-10pt,
+	frame=tb,
+	columns=fullflexible,
+	title=\textit{},
+	emph={souce, ps, map, -s, rl, rlib},emphstyle={\bfseries}
+}
+
+\lstset{
+	language=C,
+	basicstyle=\ttfamily\small,
+	keywordstyle=\color{blue}\bfseries,
+	commentstyle=\color{green!50!black},
+	stringstyle=\color{red},
+	numbers=left,
+	numberstyle=\tiny\color{gray},
+	stepnumber=1,
+	numbersep=8pt,
+	frame=single,
+	showstringspaces=false,
+	tabsize=4,
+	breaklines=true,
+	captionpos=b
+}
+
+\begin{document}
+	\maketitle
+	\newpage
+	\tableofcontents
+	\newpage
+	
+	
+	
+	\nocite{*}
+\bibliographystyle{IEEEtran}
+	\bibliography{references}
+\end{document}
