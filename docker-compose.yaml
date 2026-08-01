@@ -3,6 +3,8 @@ services:
   emqx:
     image: emqx/emqx-enterprise:6.2.2
     container_name: emqx
+    extra_hosts:
+      - "node1.cluster.local:127.0.0.1"
     ports:
       - "1883:1883"   # MQTT TCP
       - "8883:8883"   # MQTT SSL/TLS
