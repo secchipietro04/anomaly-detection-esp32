@@ -1,0 +1,19 @@
+idf_component_register(
+    SRCS
+        "main.cc"
+        "main_functions.cc"
+        "drivers/sd_card/sd_card.c"
+        "drivers/mems/ism330bx.c"
+    INCLUDE_DIRS
+        "."
+        "drivers"
+        "drivers/sd_card"
+        "drivers/mems"
+    REQUIRES
+        driver
+        esp_system
+        spi_flash
+        fatfs
+        sdmmc
+        log
+)
