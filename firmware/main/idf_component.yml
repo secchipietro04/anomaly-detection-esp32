@@ -2,3 +2,7 @@ dependencies:
   espressif/esp-tflite-micro:
     version: "*"
     #override_path: "../"
+
+  espressif/esp-nn:
+    version: "*"
+    #override_path: "../"
