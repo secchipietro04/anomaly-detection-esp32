@@ -1,8 +1,8 @@
-esp-inference/build/
+firmware/build/
 esp-mems/.vscode/
-esp-inference/.vscode/
-esp-inference/managed_components
-esp-inference/main/connection/connection.h
+firmware/.vscode/
+firmware/managed_components
+firmware/main/connection/connection.h
 **/__pycache__/
 dockerdata/
 report/report.aux
@@ -12,3 +12,4 @@ report/report.log
 report/report.out
 report/report.synctex.gz
 report/report.toc
+.vscode/
