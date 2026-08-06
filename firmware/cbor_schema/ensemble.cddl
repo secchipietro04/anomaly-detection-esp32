@@ -1,0 +1,67 @@
+
+;  Architecture & Router Enums 
+model_arch_VA = 1       ; Variational Autoencoder (rt)
+model_arch_CA = 2       ; Convolutional Autoencoder (rt)
+model_arch_CLSTM = 3    ; Convolutional LSTM Autoencoder (rt)
+model_arch_DA = 4       ; Dense Autoencoder (ft)
+model_arch_FITS = 5     ; FITS in ft mode (ft)
+model_arch_TN = 6       ; TimesNet (rt)
+
+model_router_dense = 10     ; Dense Router (ft)
+model_router_MR = 11        ; MiniRocket Router
+model_router_STFTmCNN = 12  ; STFT + Micro-CNN Router
+
+ModelType = model_arch_VA / model_arch_CA / model_arch_CLSTM / 
+            model_arch_DA / model_arch_FITS / model_arch_TN / 
+            model_router_dense / model_router_MR / model_router_STFTmCNN
+
+;  Tensor Data Type Enums 
+type_int8 = 1
+type_uint8 = 2
+type_int16 = 3
+type_float32 = 4
+type_complex64 = 5
+
+TensorDataType = type_int8 / type_uint8 / type_int16 / type_float32 / type_complex64
+
+;  Tensor Slice Specification 
+TensorSlice = {
+  "id" => uint,                         ; Slice ID
+  "t_name" => tstr,                     ; TFLite tensor name match
+  "off" => uint,                        ; Offset index in concatenated array
+  "len" => uint,                        ; Element count in slice
+  "shp" => [+ uint],                    ; Dimension layout
+  ? "feat" => [+ uint]                  ; Optional explicit feature/bin indices
+}
+
+;  Submodel Specification 
+SubModel = {
+  "s_id" => uint,                       ; Submodel ID
+  "p_name" => tstr,                     ; Part name ("full", "encoder", "decoder", etc.)
+  "dtype" => TensorDataType,            ; Buffer data type
+  "tot_elem" => uint,                   ; Total input + output elements combined
+  "in" => [+ TensorSlice],              ; Input slices
+  "out" => [+ TensorSlice]              ; Output slices
+}
+
+;  Standalone Model Package 
+; Sent or stored independently per model
+Model = {
+  "m_id" => uint,                       ; Unique Model ID
+  "m_type" => ModelType,                ; Model architecture type
+  "subm" => [+ SubModel]                ; Submodels array
+}
+
+;  Router Entry Mapping 
+; Maps a single output index/class from the router to a specific model ID
+RouteEntry = {
+  "out_idx" => uint,                    ; Router output vector index (0 to 19)
+  "m_id" => uint                        ; Target Model ID to execute for this input type
+}
+
+;  Router Configuration 
+; Sent separately to configure the decision logic
+EnsebleConfig = {
+  "r_m_id" => uint,                     ; Model ID of the Router model itself
+  "routes" => [+ RouteEntry]            ; Mapping table array (e.g. 20 entries)
+}

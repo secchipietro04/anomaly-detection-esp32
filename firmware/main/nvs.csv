@@ -1,0 +1,4 @@
+key,type,encoding,value
+storage,namespace,,
+wifi_ssid,data,string,MyHomeNetwork
+wifi_pass,data,string,SuperSecretPassword123
