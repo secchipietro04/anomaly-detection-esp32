@@ -15,3 +15,5 @@ report/report.toc
 .vscode/
 research-ml-edge.code-workspace
 firmware/.clangd
+firmware/main/cbor/*
+

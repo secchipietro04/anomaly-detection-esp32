@@ -1,0 +1,7 @@
+menu "Model Architecture Dense (DA & Dense Router)"
+    config MODEL_ARCH_DENSE_ENABLED
+        bool "Enable Dense Model (DA & Dense Router)"
+        default y
+        help
+            Enable the Dense Model component (merged Dense Autoencoder and Dense Router).
+endmenu

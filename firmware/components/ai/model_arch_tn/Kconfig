@@ -1,0 +1,7 @@
+menu "Model Architecture TN"
+    config MODEL_ARCH_TN_ENABLED
+        bool "Enable TimesNet (TN)"
+        default y
+        help
+            Enable the TimesNet (TN) model component.
+endmenu

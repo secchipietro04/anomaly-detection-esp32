@@ -1,0 +1,7 @@
+menu "Model Architecture CLSTM"
+    config MODEL_ARCH_CLSTM_ENABLED
+        bool "Enable Convolutional LSTM Autoencoder (CLSTM)"
+        default y
+        help
+            Enable the Convolutional LSTM Autoencoder (CLSTM) model component.
+endmenu

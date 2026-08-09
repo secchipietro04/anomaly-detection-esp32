@@ -1,0 +1,7 @@
+menu "Generic Model Configuration"
+    config MODEL_ARCH_GENERIC_ENABLED
+        bool "Enable Generic Model Wrapper"
+        default y
+        help
+            Enable the generic TFLite model wrapper component to load arbitrary Keras models.
+endmenu
