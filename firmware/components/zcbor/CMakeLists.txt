@@ -1,4 +1,7 @@
-
+if(BOOTLOADER_BUILD)
+    idf_component_register()
+    return()
+endif()
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 

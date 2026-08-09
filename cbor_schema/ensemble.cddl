@@ -1,4 +1,3 @@
-
 ;  Architecture & Router Enums 
 model_arch_VA = 1       ; Variational Autoencoder (rt)
 model_arch_CA = 2       ; Convolutional Autoencoder (rt)

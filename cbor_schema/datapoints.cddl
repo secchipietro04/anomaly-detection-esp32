@@ -1,12 +1,7 @@
-ComplexNumber = (
-    re: float,
-    im: float
-)
-
 DatapointsFT = (
-    "y" => [0*256 ComplexNumber],
-    "x" => [0*256 ComplexNumber],
-    "z" => [0*256 ComplexNumber]
+    "y" => [0*256 float],
+    "x" => [0*256 float],
+    "z" => [0*256 float]
 )
 DatapointsRT = (
     "y" => [0*512 uint],
@@ -15,8 +10,9 @@ DatapointsRT = (
 )
 Segment = {
     "id" => uint,
-    "rt" => bool, ;there are rt datapoints
-    "ft"=> bool, ;there are ft datapoints
+    "ss_id"=> uint, ; super segment id (for sequential segments)
+    "rt" => bool, ; are there rt datapoints
+    "ft"=> bool, ; are there ft datapoints
     "data" =>{
         "gyro_rt"=> DatapointsRT,
         "axel_rt"=> DatapointsRT,
