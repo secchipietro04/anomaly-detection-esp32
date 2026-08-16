@@ -1,7 +1,0 @@
-menu "Model Architecture FITS"
-    config MODEL_ARCH_FITS_ENABLED
-        bool "Enable FITS Model in ft mode"
-        default y
-        help
-            Enable the FITS (Frequency Interpolation for Time Series) model component.
-endmenu

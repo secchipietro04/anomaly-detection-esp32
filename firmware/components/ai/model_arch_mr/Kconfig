@@ -1,7 +1,0 @@
-menu "Model Architecture MiniRocket (MR)"
-    config MODEL_ARCH_MR_ENABLED
-        bool "Enable MiniRocket Model (MR)"
-        default y
-        help
-            Enable the MiniRocket (MR) Model component, providing custom optimized C inference.
-endmenu

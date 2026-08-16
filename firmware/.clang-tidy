@@ -1,0 +1,110 @@
+---
+# Clang-Tidy Configuration File for C/C++ Firmware Projects (ESP32 / ESP-IDF)
+# Enforces standard naming conventions, bugs & vulnerability prevention, and coding best practices.
+
+# Enable a comprehensive, standard set of checks
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  modernize-*,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-*,
+  -google-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  -readability-braces-around-statements,
+  -readability-implicit-bool-conversion,
+  -readability-magic-numbers,
+  -readability-named-parameter,
+  -readability-isolate-decl,
+  -readability-redundant-declaration,
+  -clang-diagnostic-*,
+  -readability-function-cognitive-complexity,
+  -altera-*,
+  -clang-analyzer-optin.performance.Padding
+
+# Treat warnings as warnings, not compilation-blocking errors
+WarningsAsErrors: ''
+
+# Header filter - include only user code headers (main, components) and exclude build, managed_components, and generated cbor
+HeaderFilterRegex: '^(main/(?!cbor/)|components/).*$'
+ExcludeHeaderFilterRegex: '(build|managed_components|main/cbor)/.*'
+
+# Check Options for specific checkers
+CheckOptions:
+  # Naming Conventions Configuration (readability-identifier-naming)
+  # Global fallback naming case is snake_case
+  - key:             readability-identifier-naming.DefaultCase
+    value:           lower_case
+  
+  # C++ Classes
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  
+  # C/C++ Structs (supports both lower_case with _t suffix and generated PascalCase names)
+  - key:             readability-identifier-naming.StructCase
+    value:           aNy_CasE
+  
+  # Unions
+  - key:             readability-identifier-naming.UnionCase
+    value:           lower_case
+  - key:             readability-identifier-naming.UnionSuffix
+    value:           _t
+
+  # Enums
+  - key:             readability-identifier-naming.EnumCase
+    value:           lower_case
+  - key:             readability-identifier-naming.EnumSuffix
+    value:           _t
+
+  # Typedefs
+  - key:             readability-identifier-naming.TypedefCase
+    value:           lower_case
+  - key:             readability-identifier-naming.TypedefSuffix
+    value:           _t
+
+  # Functions & Global Functions
+  - key:             readability-identifier-naming.FunctionCase
+    value:           lower_case
+  
+  # Variables and Parameters
+  - key:             readability-identifier-naming.VariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ParameterCase
+    value:           lower_case
+  
+  # Structure/Class Member Fields
+  - key:             readability-identifier-naming.MemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ClassMemberCase
+    value:           lower_case
+
+  # Class Methods
+  - key:             readability-identifier-naming.ClassMethodCase
+    value:           lower_case
+
+  # Namespaces
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           lower_case
+
+  # Constants and Macros
+  - key:             readability-identifier-naming.ConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.GlobalConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.ClassConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.MacroDefinitionCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.EnumConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.GlobalVariableIgnoredRegexp
+    value:           "^TAG$"
+  - key:             readability-identifier-naming.VariableIgnoredRegexp
+    value:           "^TAG$"

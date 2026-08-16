@@ -1,7 +1,0 @@
-menu "Model Architecture VA"
-    config MODEL_ARCH_VA_ENABLED
-        bool "Enable Variational Autoencoder (VA)"
-        default y
-        help
-            Enable the Variational Autoencoder (VA) model component.
-endmenu

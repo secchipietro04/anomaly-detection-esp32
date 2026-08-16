@@ -29,7 +29,7 @@ execute_process(
             -dc ${SCHEMA_FILE_FT}
             --output-c ${GENERATED_C_FT}
             --output-h ${GENERATED_H_FT}
-            -t EnsebleConfig RouteEntry Model SubModel TensorSlice TensorDataType ModelType
+            -t Payload ModelPackage EnsembleConfig RouteEntry
     RESULT_VARIABLE ZCBOR_RES
 )
 if(NOT ZCBOR_RES EQUAL 0)
@@ -84,17 +84,8 @@ idf_component_register(
         log
         zcbor
         base_model
-        model_arch_va
-        model_arch_ca
-        model_arch_clstm
-        model_arch_dense
-        model_arch_fits
-        model_arch_tn
-        model_arch_mr
-        model_arch_stftmcnn
-        esp_fft_wrapper
         model_ensemble
-        model_arch_generic
+        esp_fft_wrapper
 )
 
 nvs_create_partition_image(nvs nvs.csv FLASH_IN_PROJECT)

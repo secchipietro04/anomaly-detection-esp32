@@ -1,7 +1,0 @@
-menu "Model Architecture STFT + Micro-CNN"
-    config MODEL_ARCH_STFTMCNN_ENABLED
-        bool "Enable STFT + Micro-CNN Model"
-        default y
-        help
-            Enable the STFT (Short-Time Fourier Transform) + Micro-CNN Model component.
-endmenu

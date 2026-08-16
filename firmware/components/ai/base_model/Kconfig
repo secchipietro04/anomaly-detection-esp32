@@ -1,0 +1,572 @@
+menu "AI Engine Configuration"
+
+    config AI_ENABLE_CA
+        bool "Enable Convolutional Autoencoder (CA)"
+        default y
+        select TFL_USE_CONV_2D
+        select TFL_USE_TRANSPOSE_CONV
+        select TFL_USE_MAX_POOL_2D
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        help
+            Enables operator registration for Convolutional Autoencoder (CA) model.
+
+    config AI_ENABLE_CLSTM
+        bool "Enable Convolutional LSTM (CLSTM)"
+        default y
+        select TFL_USE_CONV_2D
+        select TFL_USE_UNIDIRECTIONAL_SEQUENCE_LSTM
+        select TFL_USE_RESHAPE
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        select TFL_USE_TANH
+        select TFL_USE_LOGISTIC
+        select TFL_USE_MUL
+        select TFL_USE_ADD
+        help
+            Enables operator registration for Convolutional LSTM (CLSTM) model.
+
+    config AI_ENABLE_DENSE
+        bool "Enable Flat Dense (DA / Dense Router)"
+        default y
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        select TFL_USE_SOFTMAX
+        help
+            Enables operator registration for Dense Autoencoder and Dense Router.
+
+    config AI_ENABLE_FITS
+        bool "Enable FITS"
+        default y
+        select TFL_USE_RFFT
+        select TFL_USE_IRFFT
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_ADD
+        select TFL_USE_MUL
+        help
+            Enables operator registration for FITS model.
+
+    config AI_ENABLE_MINIROCKET
+        bool "Enable MiniRocket Router"
+        default y
+        select TFL_USE_CONV_2D
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_ADD
+        select TFL_USE_MUL
+        select TFL_USE_GREATER
+        select TFL_USE_MEAN
+        help
+            Enables operator registration for MiniRocket Router.
+
+    config AI_ENABLE_STFTMCNN
+        bool "Enable STFT + Micro-CNN Router"
+        default y
+        select TFL_USE_CONV_2D
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        select TFL_USE_SOFTMAX
+        select TFL_USE_MAX_POOL_2D
+        help
+            Enables operator registration for STFT + Micro-CNN Router.
+
+    config AI_ENABLE_TIMESNET
+        bool "Enable TimesNet"
+        default y
+        select TFL_USE_RFFT
+        select TFL_USE_IRFFT
+        select TFL_USE_CONV_2D
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_ADD
+        select TFL_USE_MUL
+        select TFL_USE_RESHAPE
+        select TFL_USE_TRANSPOSE
+        select TFL_USE_SOFTMAX
+        help
+            Enables operator registration for TimesNet model.
+
+    config AI_ENABLE_VA
+        bool "Enable Variational Autoencoder (VA)"
+        default y
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_ADD
+        select TFL_USE_SUB
+        select TFL_USE_MUL
+        select TFL_USE_LOGISTIC
+        select TFL_USE_RELU
+        help
+            Enables operator registration for Variational Autoencoder (VA) model.
+
+    # Hidden granular operator configs
+    config TFL_USE_ABS
+        bool
+        default n
+
+    config TFL_USE_ADD
+        bool
+        default n
+
+    config TFL_USE_ADD_N
+        bool
+        default n
+
+    config TFL_USE_ARG_MAX
+        bool
+        default n
+
+    config TFL_USE_ARG_MIN
+        bool
+        default n
+
+    config TFL_USE_ASSIGN_VARIABLE
+        bool
+        default n
+
+    config TFL_USE_AVERAGE_POOL_2D
+        bool
+        default n
+
+    config TFL_USE_BATCH_MATMUL
+        bool
+        default n
+
+    config TFL_USE_BATCH_TO_SPACE_ND
+        bool
+        default n
+
+    config TFL_USE_BROADCAST_ARGS
+        bool
+        default n
+
+    config TFL_USE_BROADCAST_TO
+        bool
+        default n
+
+    config TFL_USE_CALL_ONCE
+        bool
+        default n
+
+    config TFL_USE_CAST
+        bool
+        default n
+
+    config TFL_USE_CEIL
+        bool
+        default n
+
+    config TFL_USE_CIRCULAR_BUFFER
+        bool
+        default n
+
+    config TFL_USE_CONCATENATION
+        bool
+        default n
+
+    config TFL_USE_CONV_2D
+        bool
+        default n
+
+    config TFL_USE_COS
+        bool
+        default n
+
+    config TFL_USE_CUMSUM
+        bool
+        default n
+
+    config TFL_USE_DECODE
+        bool
+        default n
+
+    config TFL_USE_DELAY
+        bool
+        default n
+
+    config TFL_USE_DEPTH_TO_SPACE
+        bool
+        default n
+
+    config TFL_USE_DEPTHWISE_CONV_2D
+        bool
+        default n
+
+    config TFL_USE_DEQUANTIZE
+        bool
+        default n
+
+    config TFL_USE_DETECTION_POSTPROCESS
+        bool
+        default n
+
+    config TFL_USE_DIV
+        bool
+        default n
+
+    config TFL_USE_DYNAMIC_UPDATE_SLICE
+        bool
+        default n
+
+    config TFL_USE_EMBEDDING_LOOKUP
+        bool
+        default n
+
+    config TFL_USE_ENERGY
+        bool
+        default n
+
+    config TFL_USE_ELU
+        bool
+        default n
+
+    config TFL_USE_EQUAL
+        bool
+        default n
+
+    config TFL_USE_ETHOSU
+        bool
+        default n
+
+    config TFL_USE_EXP
+        bool
+        default n
+
+    config TFL_USE_EXPAND_DIMS
+        bool
+        default n
+
+    config TFL_USE_FFT_AUTO_SCALE
+        bool
+        default n
+
+    config TFL_USE_FILL
+        bool
+        default n
+
+    config TFL_USE_FILTER_BANK
+        bool
+        default n
+
+    config TFL_USE_FILTER_BANK_LOG
+        bool
+        default n
+
+    config TFL_USE_FILTER_BANK_SQUARE_ROOT
+        bool
+        default n
+
+    config TFL_USE_FILTER_BANK_SPECTRAL_SUBTRACTION
+        bool
+        default n
+
+    config TFL_USE_FLOOR
+        bool
+        default n
+
+    config TFL_USE_FLOOR_DIV
+        bool
+        default n
+
+    config TFL_USE_FLOOR_MOD
+        bool
+        default n
+
+    config TFL_USE_FRAMER
+        bool
+        default n
+
+    config TFL_USE_FULLY_CONNECTED
+        bool
+        default n
+
+    config TFL_USE_GATHER
+        bool
+        default n
+
+    config TFL_USE_GATHER_ND
+        bool
+        default n
+
+    config TFL_USE_GREATER
+        bool
+        default n
+
+    config TFL_USE_GREATER_EQUAL
+        bool
+        default n
+
+    config TFL_USE_HARD_SWISH
+        bool
+        default n
+
+    config TFL_USE_IF
+        bool
+        default n
+
+    config TFL_USE_IRFFT
+        bool
+        default n
+
+    config TFL_USE_L2_NORMALIZATION
+        bool
+        default n
+
+    config TFL_USE_L2_POOL_2D
+        bool
+        default n
+
+    config TFL_USE_LEAKY_RELU
+        bool
+        default n
+
+    config TFL_USE_LESS
+        bool
+        default n
+
+    config TFL_USE_LESS_EQUAL
+        bool
+        default n
+
+    config TFL_USE_LOG
+        bool
+        default n
+
+    config TFL_USE_LOGICAL_AND
+        bool
+        default n
+
+    config TFL_USE_LOGICAL_NOT
+        bool
+        default n
+
+    config TFL_USE_LOGICAL_OR
+        bool
+        default n
+
+    config TFL_USE_LOGISTIC
+        bool
+        default n
+
+    config TFL_USE_LOG_SOFTMAX
+        bool
+        default n
+
+    config TFL_USE_MAXIMUM
+        bool
+        default n
+
+    config TFL_USE_MAX_POOL_2D
+        bool
+        default n
+
+    config TFL_USE_MIRROR_PAD
+        bool
+        default n
+
+    config TFL_USE_MEAN
+        bool
+        default n
+
+    config TFL_USE_MINIMUM
+        bool
+        default n
+
+    config TFL_USE_MUL
+        bool
+        default n
+
+    config TFL_USE_NEG
+        bool
+        default n
+
+    config TFL_USE_NOT_EQUAL
+        bool
+        default n
+
+    config TFL_USE_OVERLAP_ADD
+        bool
+        default n
+
+    config TFL_USE_PACK
+        bool
+        default n
+
+    config TFL_USE_PAD
+        bool
+        default n
+
+    config TFL_USE_PAD_V2
+        bool
+        default n
+
+    config TFL_USE_PCAN
+        bool
+        default n
+
+    config TFL_USE_PRELU
+        bool
+        default n
+
+    config TFL_USE_QUANTIZE
+        bool
+        default n
+
+    config TFL_USE_READ_VARIABLE
+        bool
+        default n
+
+    config TFL_USE_REDUCE_ALL
+        bool
+        default n
+
+    config TFL_USE_REDUCE_MAX
+        bool
+        default n
+
+    config TFL_USE_REDUCE_MIN
+        bool
+        default n
+
+    config TFL_USE_RELU
+        bool
+        default n
+
+    config TFL_USE_RELU6
+        bool
+        default n
+
+    config TFL_USE_RESHAPE
+        bool
+        default n
+
+    config TFL_USE_RESIZE_BILINEAR
+        bool
+        default n
+
+    config TFL_USE_RESIZE_NEAREST_NEIGHBOR
+        bool
+        default n
+
+    config TFL_USE_REVERSE_V2
+        bool
+        default n
+
+    config TFL_USE_RFFT
+        bool
+        default n
+
+    config TFL_USE_ROUND
+        bool
+        default n
+
+    config TFL_USE_RSQRT
+        bool
+        default n
+
+    config TFL_USE_SELECT_V2
+        bool
+        default n
+
+    config TFL_USE_SHAPE
+        bool
+        default n
+
+    config TFL_USE_SIN
+        bool
+        default n
+
+    config TFL_USE_SLICE
+        bool
+        default n
+
+    config TFL_USE_SOFTMAX
+        bool
+        default n
+
+    config TFL_USE_SPACE_TO_BATCH_ND
+        bool
+        default n
+
+    config TFL_USE_SPACE_TO_DEPTH
+        bool
+        default n
+
+    config TFL_USE_SPLIT
+        bool
+        default n
+
+    config TFL_USE_SPLIT_V
+        bool
+        default n
+
+    config TFL_USE_SQUEEZE
+        bool
+        default n
+
+    config TFL_USE_SQRT
+        bool
+        default n
+
+    config TFL_USE_SQUARE
+        bool
+        default n
+
+    config TFL_USE_SQUARED_DIFFERENCE
+        bool
+        default n
+
+    config TFL_USE_STRIDED_SLICE
+        bool
+        default n
+
+    config TFL_USE_STACKER
+        bool
+        default n
+
+    config TFL_USE_SUB
+        bool
+        default n
+
+    config TFL_USE_SUM
+        bool
+        default n
+
+    config TFL_USE_SVDF
+        bool
+        default n
+
+    config TFL_USE_TANH
+        bool
+        default n
+
+    config TFL_USE_TRANSPOSE_CONV
+        bool
+        default n
+
+    config TFL_USE_TRANSPOSE
+        bool
+        default n
+
+    config TFL_USE_UNPACK
+        bool
+        default n
+
+    config TFL_USE_UNIDIRECTIONAL_SEQUENCE_LSTM
+        bool
+        default n
+
+    config TFL_USE_VAR_HANDLE
+        bool
+        default n
+
+    config TFL_USE_WHILE
+        bool
+        default n
+
+    config TFL_USE_WINDOW
+        bool
+        default n
+
+    config TFL_USE_ZEROS_LIKE
+        bool
+        default n
+
+endmenu

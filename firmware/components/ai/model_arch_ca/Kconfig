@@ -1,7 +1,0 @@
-menu "Model Architecture CA"
-    config MODEL_ARCH_CA_ENABLED
-        bool "Enable Convolutional Autoencoder (CA)"
-        default y
-        help
-            Enable the Convolutional Autoencoder (CA) model component.
-endmenu
