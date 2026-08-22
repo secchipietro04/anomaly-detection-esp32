@@ -70,7 +70,10 @@ struct sd_card {
  */
 esp_err_t sd_card_init(sd_card_t *sd,const sd_card_config_t *config);
 
-sd_card_config_t config;
+uint8_t* sd_card_read_file(const char* path, size_t* out_size);
+bool sd_card_save_file(const char *path, const uint8_t *data, size_t size);
+bool sd_card_delete_file(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

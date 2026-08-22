@@ -17,6 +17,12 @@ extern "C" {
 
 #define DEFAULT_SUBMODEL_CACHE_CAPACITY 4
 
+#define DEFAULT_RAW_BINS            256
+#define DEFAULT_HISTORY_DEPTH       256
+#define DEFAULT_WARMUP_STEPS        5
+
+#define ROUTER_CONFIDENCE_THRESHOLD  0.5f
+
 typedef struct {
     uint32_t out_idx;
     uint32_t m_id;
@@ -123,24 +129,33 @@ int model_ensemble_load_submodel(model_ensemble_t* ensemble, const uint8_t* mode
 void model_ensemble_set_cache_capacity(model_ensemble_t* ensemble, uint32_t capacity);
 
 /**
- * @brief Ingests an FFT slice, updates memory, and determines the routed submodel index.
+ * @brief Ingests an FFT slice and updates the recurrent backbone states.
  * @param ensemble Pointer to the model ensemble.
  * @param fft_raw Pointer to raw FFT slice (size raw_bins).
- * @param out_target_submodel_id Pointer to output routed submodel ID.
- * @param out_already_loaded Pointer to output boolean (true if submodel is currently cached in RAM).
- * @param out_warmup_more_data Pointer to output boolean (true if still warming up).
  * @return true on success, false on failure.
  */
-bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_warmup_more_data);
+bool model_ensemble_inf_memory(model_ensemble_t* ensemble, const float* fft_raw);
 
 /**
- * @brief Executes the active submodel (Archetype 1) and computes the anomaly score.
+ * @brief Runs the router model on the circular history buffer to choose the submodel.
  * @param ensemble Pointer to the model ensemble.
- * @param out_anomaly_score Pointer to output anomaly score.
- * @param out_is_anomaly Pointer to output alert flag.
- * @return true on success, false on failure (e.g. no submodel loaded).
+ * @param out_target_submodel_id Pointer to output resolved submodel ID.
+ * @param out_already_loaded Pointer to output boolean (true if submodel is currently cached in RAM).
+ * @param out_is_anomaly Pointer to output boolean (true if router classification confidence is below threshold).
+ * @return true on success, false on failure.
  */
-bool model_ensemble_step_2(model_ensemble_t* ensemble, float* out_anomaly_score, bool* out_is_anomaly);
+bool model_ensemble_inf_router(model_ensemble_t* ensemble, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_is_anomaly);
+
+/**
+ * @brief Runs the active autoencoder submodel on the circular buffer history.
+ * @param ensemble Pointer to the model ensemble.
+ * @param out_anomaly_score Pointer to output anomaly score (averaged across evaluated windows).
+ * @param out_is_anomaly Pointer to output boolean (true if any window exceeds threshold).
+ * @param num_frames Total chronological frames processed in this segment.
+ * @param skip_amount Number of frames to skip between evaluation windows.
+ * @return true on success, false on failure.
+ */
+bool model_ensemble_inf_ae(model_ensemble_t* ensemble, float* out_anomaly_score, bool* out_is_anomaly, uint32_t num_frames, uint32_t skip_amount);
 
 #ifdef __cplusplus
 }

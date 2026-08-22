@@ -8,6 +8,8 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "sd_card.h"
+#include <sys/stat.h>
+#include <sys/unistd.h>
 
 static const char *TAG = "SD_CARD";
 
@@ -99,4 +101,47 @@ esp_err_t sd_card_init(sd_card_t *sd, const sd_card_config_t *config) {
     }
 
     return ESP_OK;
+}
+
+
+uint8_t* sd_card_read_file(const char* path, size_t* out_size) {
+    *out_size = 0;
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return NULL;
+    }
+    
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    
+    uint8_t *buf = malloc(st.st_size);
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
+    
+    size_t read = fread(buf, 1, st.st_size, f);
+    fclose(f);
+    
+    if (read != st.st_size) {
+        free(buf);
+        return NULL;
+    }
+    
+    *out_size = st.st_size;
+    return buf;
+}
+
+bool sd_card_save_file(const char *path, const uint8_t *data, size_t size) {
+    // Ensure parent folder exists
+    mkdir("/sdcard/models", 0755);
+    FILE *f = fopen(path, "wb");
+    if (!f) return false;
+    size_t written = fwrite(data, 1, size, f);
+    fclose(f);
+    return (written == size);
+}
+
+bool sd_card_delete_file(const char *path) {
+    return (unlink(path) == 0);
 }

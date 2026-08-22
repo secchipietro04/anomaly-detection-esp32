@@ -36,6 +36,7 @@ typedef struct {
     float anomaly_threshold;      // Threshold for autoencoders
     uint32_t route_mapping[16];   // Route mapping index -> submodel_id
     uint32_t num_modes;           // Number of output logits for router
+    uint32_t skip_amount;         // evaluation window skip amount
 } ModelConfig_t;
 
 #ifdef __cplusplus

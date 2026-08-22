@@ -101,7 +101,9 @@ extern "C" void model_instance_deinit(ModelInstance_t* self) {
 
     // Find starting pointer of ModelContext from the embedded interpreter field offset
     char* interpreter_ptr = (char*)self->interpreter;
-    size_t offset = offsetof(ModelContext, interpreter);
+    alignas(ModelContext) uint8_t dummy_buf[sizeof(ModelContext)];
+    ModelContext* dummy_ctx = reinterpret_cast<ModelContext*>(dummy_buf);
+    size_t offset = reinterpret_cast<char*>(&dummy_ctx->interpreter) - reinterpret_cast<char*>(dummy_ctx);
     ModelContext* ctx = (ModelContext*)(interpreter_ptr - offset);
 
     delete ctx;

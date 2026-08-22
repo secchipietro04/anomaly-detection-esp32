@@ -1,39 +1,47 @@
-set(GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../main/cbor")
-set(GENERATED_C_FT "${GEN_DIR}/datapoints.c")
-set(GENERATED_H_FT "${GEN_DIR}/datapoints.h")
-set(SCHEMA_FILE_FT "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/datapoints.cddl")
+set(GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cbor/gen")
+set(GENERATED_C_TEL "${GEN_DIR}/telemetry.c")
+set(GENERATED_H_TEL "${GEN_DIR}/telemetry.h")
+set(SCHEMA_FILE_TEL "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/telemetry.cddl")
 
-message(STATUS "Generating datapoints cbor files now...")
+message(STATUS "Generating telemetry cbor files now...")
 file(MAKE_DIRECTORY ${GEN_DIR})
 execute_process(
     COMMAND zcbor code
-            -ec ${SCHEMA_FILE_FT}
-            --output-c ${GENERATED_C_FT}
-            --output-h ${GENERATED_H_FT}
-            -t Segment DatapointsRT DatapointsFT
+            -edc ${SCHEMA_FILE_TEL}
+            --output-c ${GENERATED_C_TEL}
+            --output-h ${GENERATED_H_TEL}
+            --default-max-qty 16
+            -t Segment InferencePacket NodeHealthInfo NodeAlert Command NodeCapabilities
     RESULT_VARIABLE ZCBOR_RES
 )
 if(NOT ZCBOR_RES EQUAL 0)
-    message(FATAL_ERROR "Failed to pre-generate CBOR files from datapoints schema.")
+    message(FATAL_ERROR "Failed to pre-generate CBOR files from telemetry schema.")
 endif()
 
 
-set(GENERATED_C_FT "${GEN_DIR}/ensemble.c")
-set(GENERATED_H_FT "${GEN_DIR}/ensemble.h")
-set(SCHEMA_FILE_FT "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/ensemble.cddl")
+set(GENERATED_C_ENS "${GEN_DIR}/ensemble.c")
+set(GENERATED_H_ENS "${GEN_DIR}/ensemble.h")
+set(SCHEMA_FILE_ENS "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/ensemble.cddl")
+set(SCHEMA_FILE_MOD "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/model.cddl")
+
+# Concatenate ensemble and model schemas dynamically at build properties phase
+set(SCHEMA_FILE_COMBINED "${CMAKE_CURRENT_BINARY_DIR}/ensemble_combined.cddl")
+file(READ "${SCHEMA_FILE_ENS}" CONTENT_ENS)
+file(READ "${SCHEMA_FILE_MOD}" CONTENT_MOD)
+file(WRITE "${SCHEMA_FILE_COMBINED}" "${CONTENT_ENS}\n${CONTENT_MOD}")
 
 message(STATUS "Generating ensemble cbor files now...")
-file(MAKE_DIRECTORY ${GEN_DIR})
 execute_process(
     COMMAND zcbor code
-            -dc ${SCHEMA_FILE_FT}
-            --output-c ${GENERATED_C_FT}
-            --output-h ${GENERATED_H_FT}
-            -t Payload ModelPackage EnsembleConfig RouteEntry
+            -dc ${SCHEMA_FILE_COMBINED}
+            --output-c ${GENERATED_C_ENS}
+            --output-h ${GENERATED_H_ENS}
+            --default-max-qty 16
+            -t Payload RouteEntry EnsembleConfig ModelPackage
     RESULT_VARIABLE ZCBOR_RES
 )
 if(NOT ZCBOR_RES EQUAL 0)
-    message(FATAL_ERROR "Failed to pre-generate CBOR files from ensemble schema.")
+    message(FATAL_ERROR "Failed to pre-generate CBOR files from ensemble/model schema.")
 endif()
 
 
@@ -44,10 +52,11 @@ set(SCHEMA_FILE_DEV "${CMAKE_CURRENT_SOURCE_DIR}/../../cbor_schema/device.cddl")
 message(STATUS "Generating device cbor files now...")
 execute_process(
     COMMAND zcbor code
-            -edc ${SCHEMA_FILE_DEV}
+            -dc ${SCHEMA_FILE_DEV}
             --output-c ${GENERATED_C_DEV}
             --output-h ${GENERATED_H_DEV}
-            -t DeviceConfig InferenceResult DeviceCommand DeviceStatus SensorRegistration ModelCapability
+            --default-max-qty 16
+            -t RuntimeConfig
     RESULT_VARIABLE ZCBOR_RES
 )
 if(NOT ZCBOR_RES EQUAL 0)
@@ -60,13 +69,31 @@ idf_component_register(
     SRCS
         "main.cc"
         "main_functions.cc"
+        "quad_buffer/quad_buffer.c"
+        "harvester/harvester.c"
+        "inferencer/inferencer.c"
+        "sd_writer/sd_writer.c"
+        "uploader/uploader.c"
+        "dump_reader/dump_reader.c"
+        "mqtt_handlers/mqtt_handlers.c"
         "drivers/sd_card/sd_card.c"
         "drivers/mems/ism330bx.c"
         "network/mqtt/mqtt.c"
         "network/wifi/wifi.c"
+        "optimization/dsp_opt.c"
         ${GEN_SRCS}
     INCLUDE_DIRS
         "."
+        "optimization"
+        "quad_buffer"
+        "harvester"
+        "inferencer"
+        "sd_writer"
+        "uploader"
+        "dump_reader"
+        "mqtt_handlers"
+        "cbor"
+        "cbor/gen"
         "drivers"
         "drivers/sd_card"
         "drivers/mems"
@@ -77,6 +104,7 @@ idf_component_register(
         esp_system
         esp_netif
         esp_wifi
+        esp-dsp
         nvs_flash
         spi_flash
         fatfs

@@ -141,14 +141,10 @@ void model_ensemble_set_cache_capacity(model_ensemble_t* ensemble, uint32_t capa
     model_cache_set_capacity(&ensemble->submodel_cache, capacity);
 }
 
-bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_warmup_more_data) {
-    if (!ensemble || !fft_raw || !out_target_submodel_id || !out_already_loaded || !out_warmup_more_data) {
+bool model_ensemble_inf_memory(model_ensemble_t* ensemble, const float* fft_raw) {
+    if (!ensemble || !fft_raw) {
         return false;
     }
-
-    *out_target_submodel_id = 0;
-    *out_already_loaded = false;
-    *out_warmup_more_data = false;
 
     // 1. Ingest FFT slice and apply log transform
     float X_log[256];
@@ -168,7 +164,6 @@ bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uin
         if (mem_bins < ensemble->raw_bins) {
             pool_1d_max_pow2(X_log, ensemble->raw_bins, mem_input, mem_bins);
         } else {
-            
             memcpy(mem_input, X_log, mem_bins * sizeof(float));
         }
 
@@ -182,14 +177,18 @@ bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uin
         memcpy(ensemble->c_state, mem_output + mem_d, mem_d * sizeof(float));
     }
 
-    // 4. Check Warmup
-    ensemble->warmup_steps_done++;
-    if (ensemble->warmup_steps_done < ensemble->warmup_steps) {
-        *out_warmup_more_data = true;
-        return true;
+    return true;
+}
+
+bool model_ensemble_inf_router(model_ensemble_t* ensemble, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_is_anomaly) {
+    if (!ensemble || !out_target_submodel_id || !out_already_loaded || !out_is_anomaly) {
+        return false;
     }
 
-    // 5. Run Router model
+    *out_target_submodel_id = 0;
+    *out_already_loaded = false;
+    *out_is_anomaly = false;
+
     if (!ensemble->router_model_loaded) {
         ESP_LOGE(TAG, "Router model is not loaded");
         return false;
@@ -210,6 +209,7 @@ bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uin
         return false;
     }
 
+    // Find best mode and calculate Softmax probability
     uint32_t best_mode = 0;
     float max_logit = r_output[0];
     for (uint32_t i = 1; i < num_modes; i++) {
@@ -217,6 +217,19 @@ bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uin
             max_logit = r_output[i];
             best_mode = i;
         }
+    }
+
+    float sum_exp = 0.0f;
+    for (uint32_t i = 0; i < num_modes; i++) {
+        sum_exp += expf(r_output[i]);
+    }
+    float best_prob = expf(max_logit) / sum_exp;
+
+    // If max probability is below the anomaly threshold, classify as router anomaly
+    if (best_prob < ROUTER_CONFIDENCE_THRESHOLD) {
+        ESP_LOGW(TAG, "Router confidence %f below threshold %f. Segment is anomalous.", best_prob, ROUTER_CONFIDENCE_THRESHOLD);
+        *out_is_anomaly = true;
+        return true;
     }
 
     // Resolve submodel ID from routing table
@@ -240,7 +253,7 @@ bool model_ensemble_step_1(model_ensemble_t* ensemble, const float* fft_raw, uin
     return true;
 }
 
-bool model_ensemble_step_2(model_ensemble_t* ensemble, float* out_anomaly_score, bool* out_is_anomaly) {
+bool model_ensemble_inf_ae(model_ensemble_t* ensemble, float* out_anomaly_score, bool* out_is_anomaly, uint32_t num_frames, uint32_t skip_amount) {
     if (!ensemble || !out_anomaly_score || !out_is_anomaly) {
         return false;
     }
@@ -257,36 +270,71 @@ bool model_ensemble_step_2(model_ensemble_t* ensemble, float* out_anomaly_score,
     ModelInstance_t* active_submodel = &ensemble->submodel_cache.items[0].model;
 
     uint32_t s_id = active_submodel->config.model_id;
-    uint32_t submodel_depth = active_submodel->config.temporal_depth;
-    uint32_t submodel_bins = active_submodel->config.frequency_bins;
-
-    // Verify chronological sequence match via ring buffer wrapper
-    if (!ring_buffer_verify_sequence(&ensemble->ring_buffer, s_id, submodel_depth)) {
-        ESP_LOGD(TAG, "Submodel %lu sequence broken. Skipping invocation.", (unsigned long)s_id);
-        return true;
-    }
+    uint32_t depth = active_submodel->config.temporal_depth;
+    uint32_t bins = active_submodel->config.frequency_bins;
 
     float* s_input = model_instance_get_input_tensor(active_submodel, 0);
 
-    // Unroll chronological slices into input tensor
-    ring_buffer_unroll(&ensemble->ring_buffer, s_input, submodel_bins, submodel_depth);
+    // Determine evaluation loop range based on whether it is a memory/recurrent model
+    // If a memory model is loaded, we only evaluate the final chronological window (last strip)
+    int start_t;
+    int end_t = (int)num_frames - (int)depth;
+    bool is_memory = ensemble->memory_model_loaded;
 
-    model_instance_invoke(active_submodel);
-
-    // Get the latest slice for target loss calculation
-    const float* target_raw = ring_buffer_get_slice(&ensemble->ring_buffer, -1);
-    float target_processed[256];
-
-    if (submodel_bins < ensemble->raw_bins) {
-        pool_1d_max_pow2(target_raw, ensemble->raw_bins, target_processed, submodel_bins);
+    if (is_memory) {
+        start_t = end_t;
     } else {
-        memcpy(target_processed, target_raw, submodel_bins * sizeof(float));
+        start_t = 0;
     }
 
-    const float* s_output = model_instance_get_output_tensor(active_submodel, 0);
-    float loss = compute_reconstruction_loss(target_processed, s_output, submodel_bins, active_submodel->config.loss_mode);
-    *out_anomaly_score = loss;
-    *out_is_anomaly = (loss >= active_submodel->config.anomaly_threshold);
+    float total_loss = 0.0f;
+    int evaluations = 0;
+    bool any_anomaly = false;
+
+    int t = start_t;
+    while (t <= end_t) {
+        // Copy/unroll the window of frames starting at frame t
+        for (uint32_t k = 0; k < depth; k++) {
+            const float* src_slice = ring_buffer_get_slice(&ensemble->ring_buffer, -(int)num_frames + t + (int)k);
+            float* dest_ptr = s_input + (k * bins);
+            if (bins < ensemble->raw_bins) {
+                pool_1d_max_pow2(src_slice, ensemble->raw_bins, dest_ptr, bins);
+            } else {
+                memcpy(dest_ptr, src_slice, bins * sizeof(float));
+            }
+        }
+
+        model_instance_invoke(active_submodel);
+
+        // Get the target slice for reconstruction loss calculation (typically the last frame of the window)
+        const float* target_raw = ring_buffer_get_slice(&ensemble->ring_buffer, -(int)num_frames + t + (int)depth - 1);
+        float target_processed[256];
+
+        if (bins < ensemble->raw_bins) {
+            pool_1d_max_pow2(target_raw, ensemble->raw_bins, target_processed, bins);
+        } else {
+            memcpy(target_processed, target_raw, bins * sizeof(float));
+        }
+
+        const float* s_output = model_instance_get_output_tensor(active_submodel, 0);
+        float loss = compute_reconstruction_loss(target_processed, s_output, bins, active_submodel->config.loss_mode);
+
+        total_loss += loss;
+        if (loss >= active_submodel->config.anomaly_threshold) {
+            any_anomaly = true;
+        }
+        evaluations++;
+
+        if (is_memory) {
+            break; // only run the last window
+        }
+        t += (int)depth + (int)skip_amount;
+    }
+
+    if (evaluations > 0) {
+        *out_anomaly_score = total_loss / evaluations;
+        *out_is_anomaly = any_anomaly;
+    }
 
     return true;
 }

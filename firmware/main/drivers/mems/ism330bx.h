@@ -48,16 +48,18 @@ typedef enum {
 
 typedef enum {
   ISM330BX_ODR_OFF = 0x00,
-  ISM330BX_ODR_15Hz = 0x01,
-  ISM330BX_ODR_30Hz = 0x02,
-  ISM330BX_ODR_60Hz = 0x03,
-  ISM330BX_ODR_120Hz = 0x04,
-  ISM330BX_ODR_240Hz = 0x05,
-  ISM330BX_ODR_480Hz = 0x06,
-  ISM330BX_ODR_960Hz = 0x07,
-  ISM330BX_ODR_1920Hz = 0x08,
-  ISM330BX_ODR_3840Hz = 0x09,
-  ISM330BX_ODR_7680Hz = 0x0A,
+  ISM330BX_ODR_1u875Hz = 0x01,
+  ISM330BX_ODR_7u5Hz = 0x02,
+  ISM330BX_ODR_15Hz = 0x03,
+  ISM330BX_ODR_30Hz = 0x04,
+  ISM330BX_ODR_60Hz = 0x05,
+  ISM330BX_ODR_120Hz = 0x06,
+  ISM330BX_ODR_240Hz = 0x07,
+  ISM330BX_ODR_480Hz = 0x08,
+  ISM330BX_ODR_960Hz = 0x09,
+  ISM330BX_ODR_1920Hz = 0x0A,
+  ISM330BX_ODR_3840Hz = 0x0B,
+  ISM330BX_ODR_7680Hz = 0x0C,
 } ism330bx_odr_t;
 
 typedef enum {
@@ -133,8 +135,8 @@ typedef struct {
       .gyro_odr = ISM330BX_ODR_1920Hz,               \
       .gyro_fs = ISM330BX_GYRO_FS_2000DPS,           \
       .fifo_mode = ISM330BX_FIFO_STREAM,             \
-      .fifo_bdr_xl = 0x07,                           \
-      .fifo_bdr_gy = 0x08,                           \
+      .fifo_bdr_xl = ISM330BX_ODR_960Hz,             \
+      .fifo_bdr_gy = ISM330BX_ODR_1920Hz,            \
     }                                                \
   }
 
@@ -147,11 +149,15 @@ typedef struct {
 } ism330bx_axis3_t;
 
 typedef struct {
-  ism330bx_axis3_t *accel_data;
+  int16_t *accel_x;
+  int16_t *accel_y;
+  int16_t *accel_z;
   size_t accel_data_size; // input buffer size
   size_t accel_count;     // number of samples read
 
-  ism330bx_axis3_t *gyro_data;
+  int16_t *gyro_x;
+  int16_t *gyro_y;
+  int16_t *gyro_z;
   size_t gyro_data_size;
   size_t gyro_count;
 
@@ -186,6 +192,14 @@ struct ism330bx_spi_dev_t {
 esp_err_t ism330bx_spi_create(ism330bx_spi_dev_t *dev,
                               const ism330bx_init_config_t *init_cfg);
 esp_err_t ism330bx_spi_destroy(ism330bx_spi_dev_t *dev);
+
+extern const float ISM330BX_ACCEL_FREQS[];
+extern const size_t ISM330BX_ACCEL_FREQS_COUNT;
+
+extern const float ISM330BX_GYRO_FREQS[];
+extern const size_t ISM330BX_GYRO_FREQS_COUNT;
+
+ism330bx_odr_t ism330bx_hz_to_odr(float hz);
 
 #ifdef __cplusplus
 }

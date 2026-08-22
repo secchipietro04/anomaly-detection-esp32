@@ -110,6 +110,21 @@ static void wifi_destroy_impl(wifi_wrapper_t *self) {
     free(self);
 }
 
+static void bootstrap_credentials(const char *nvs_namespace) {
+    nvs_handle_t h;
+    if (nvs_open(nvs_namespace, NVS_READWRITE, &h) == ESP_OK) {
+        char temp[64];
+        size_t len = sizeof(temp);
+        if (nvs_get_str(h, "ssid", temp, &len) != ESP_OK) {
+            nvs_set_str(h, "ssid", "Iotinga_AP");
+            nvs_set_str(h, "password", "iotinga123");
+            nvs_commit(h);
+            ESP_LOGI(TAG, "bootstrapped default NVS WiFi credentials");
+        }
+        nvs_close(h);
+    }
+}
+
 wifi_wrapper_t* wifi_wrapper_create(const char *nvs_namespace) {
     wifi_wrapper_t *self = calloc(1, sizeof(wifi_wrapper_t));
     wifi_private_t *priv = calloc(1, sizeof(wifi_private_t));
@@ -121,6 +136,8 @@ wifi_wrapper_t* wifi_wrapper_create(const char *nvs_namespace) {
 
     priv->max_retries = 5;
     priv->event_group = xEventGroupCreate();
+
+    bootstrap_credentials(nvs_namespace);
 
     if (load_nvs_credentials(priv, nvs_namespace) != ESP_OK) {
         vEventGroupDelete(priv->event_group);

@@ -139,14 +139,14 @@ static esp_err_t ism330bx_fetch_fifo_buffer(ism330bx_spi_dev_t *dev, ism330bx_fi
     uint8_t tag = (packet[0] >> ISM330BX_FIFO_TAG_SHIFT) & ISM330BX_FIFO_TAG_MASK;
 
     if (tag == ISM330BX_FIFO_TAG_GYRO && result->gyro_count < result->gyro_data_size) {
-      result->gyro_data[result->gyro_count].x = (int16_t)((packet[2] << 8) | packet[1]);
-      result->gyro_data[result->gyro_count].y = (int16_t)((packet[4] << 8) | packet[3]);
-      result->gyro_data[result->gyro_count].z = (int16_t)((packet[6] << 8) | packet[5]);
+      result->gyro_x[result->gyro_count] = (int16_t)((packet[2] << 8) | packet[1]);
+      result->gyro_y[result->gyro_count] = (int16_t)((packet[4] << 8) | packet[3]);
+      result->gyro_z[result->gyro_count] = (int16_t)((packet[6] << 8) | packet[5]);
       result->gyro_count++;
     } else if (tag == ISM330BX_FIFO_TAG_ACCEL && result->accel_count < result->accel_data_size) {
-      result->accel_data[result->accel_count].x = (int16_t)((packet[2] << 8) | packet[1]);
-      result->accel_data[result->accel_count].y = (int16_t)((packet[4] << 8) | packet[3]);
-      result->accel_data[result->accel_count].z = (int16_t)((packet[6] << 8) | packet[5]);
+      result->accel_x[result->accel_count] = (int16_t)((packet[2] << 8) | packet[1]);
+      result->accel_y[result->accel_count] = (int16_t)((packet[4] << 8) | packet[3]);
+      result->accel_z[result->accel_count] = (int16_t)((packet[6] << 8) | packet[5]);
       result->accel_count++;
     }
   }
@@ -269,4 +269,22 @@ esp_err_t ism330bx_spi_destroy(ism330bx_spi_dev_t *dev) {
     spi_bus_free(dev->host_id);
   }
   return ret;
+}
+
+const float ISM330BX_ACCEL_FREQS[] = { 15.0f, 30.0f, 60.0f, 120.0f, 240.0f, 480.0f, 960.0f, 1920.0f, 3840.0f };
+const size_t ISM330BX_ACCEL_FREQS_COUNT = sizeof(ISM330BX_ACCEL_FREQS) / sizeof(ISM330BX_ACCEL_FREQS[0]);
+
+const float ISM330BX_GYRO_FREQS[] = { 15.0f, 30.0f, 60.0f, 120.0f, 240.0f, 480.0f, 960.0f, 1920.0f, 3840.0f };
+const size_t ISM330BX_GYRO_FREQS_COUNT = sizeof(ISM330BX_GYRO_FREQS) / sizeof(ISM330BX_GYRO_FREQS[0]);
+
+ism330bx_odr_t ism330bx_hz_to_odr(float hz) {
+    if (hz == 15.0f)   return ISM330BX_ODR_15Hz;
+    if (hz == 30.0f)   return ISM330BX_ODR_30Hz;
+    if (hz == 60.0f)   return ISM330BX_ODR_60Hz;
+    if (hz == 120.0f)  return ISM330BX_ODR_120Hz;
+    if (hz == 240.0f)  return ISM330BX_ODR_240Hz;
+    if (hz == 480.0f)  return ISM330BX_ODR_480Hz;
+    if (hz == 960.0f)  return ISM330BX_ODR_960Hz;
+    if (hz == 1920.0f) return ISM330BX_ODR_1920Hz;
+    return ISM330BX_ODR_3840Hz;
 }
