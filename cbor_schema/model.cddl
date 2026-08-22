@@ -1,0 +1,73 @@
+model_type_autoencoder = 1   ; autoencoder model for reconstruction error
+model_type_router      = 2   ; router for submodel routing
+model_type_memory      = 3   ; memory model for recurrent states
+
+ModelType = model_type_autoencoder / model_type_router / model_type_memory
+
+arch_tag_VA         = 1
+arch_tag_CA         = 2
+arch_tag_CLSTM      = 3
+arch_tag_DA         = 4
+arch_tag_FITS       = 5
+arch_tag_TN         = 6
+arch_tag_dense_r    = 10
+arch_tag_stft_mcnn  = 12
+arch_tag_1d_cnn_r   = 13
+arch_tag_lstm_mem   = 20
+
+ArchitectureTag = arch_tag_VA /
+                  arch_tag_CA /
+                  arch_tag_CLSTM /
+                  arch_tag_DA /
+                  arch_tag_FITS /
+                  arch_tag_TN /
+                  arch_tag_dense_r /
+                  arch_tag_stft_mcnn /
+                  arch_tag_1d_cnn_r /
+                  arch_tag_lstm_mem /
+                  uint
+
+LossMode_LogMSE    = 1   ; MSE directly on ln(1+X)
+LossMode_LinearMSE = 2   ; MSE after expm1(X)
+
+LossMode = LossMode_LogMSE / LossMode_LinearMSE
+
+BaseModelPackage = (
+  "m_id"  => uint,             ; Unique Model ID
+  ? "tag" => ArchitectureTag,  ; arch type tag
+  "data"  => bstr              ; Raw .tflite binary bytes
+)
+
+MemoryModelPackage = {
+  BaseModelPackage,
+  "type"  => model_type_memory, 
+  "accel_bins" => uint,         ; input bins for accelerometer
+  "gyro_bins" => uint,          ; input bins for gyroscope
+  "outdim" => uint,             ; output dimension
+  "state" => uint               ; state dimension size
+}
+
+AutoencoderModelPackage = {
+  BaseModelPackage,
+  "type"  => model_type_autoencoder, 
+  "accel_bins" => uint,         ; input bins for accelerometer
+  "gyro_bins" => uint,          ; input bins for gyroscope
+  "tsteps"=> uint,              ; input temporal depth
+
+  ? "mem_d" => uint,            ; memory context size consumed
+  "limit" => float,             ; anomaly threshold
+  "loss"  => LossMode,          ; loss mode
+  ? "skip" => uint              ; evaluation window skip amount
+}
+
+RouterModelPackage = {
+  BaseModelPackage,
+  "type"  => model_type_router, 
+  "accel_bins" => uint,         ; input bins for accelerometer
+  "gyro_bins" => uint,          ; input bins for gyroscope
+  "tsteps"=> uint,              ; input temporal depth
+  ? "mem_d" => uint,            ; memory context size consumed
+  "class" => uint               ; number of output classes
+}
+
+ModelPackage = MemoryModelPackage / AutoencoderModelPackage / RouterModelPackage

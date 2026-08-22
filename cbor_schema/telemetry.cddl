@@ -1,0 +1,75 @@
+;  Emission Reason Tags 
+EmitReason_Continuous = 1
+EmitReason_Anomaly    = 2
+EmitReason_Periodic   = 3  
+EmitReason_ManualDump = 4  
+
+EmitReason = EmitReason_Continuous / EmitReason_Anomaly / EmitReason_Periodic / EmitReason_ManualDump
+
+Datapoints = (
+    "x" => [0*512 float32],
+    "y" => [0*512 float32],
+    "z" => [0*512 float32]
+)
+
+;  Uplink: data batch
+; Topic: v1/{node_id}/data/{sensor_type} (QoS 1)
+Segment = {
+    "id"    => uint,           ; segment_id
+    "rate"  => float,          ; sample rate in Hz
+    "reason" => EmitReason,    ; Why this batch was emitted
+    "chunk" => uint,         ; subsegment index 
+
+    "data" =>{
+        "gyro"  => Datapoints, ; gyro_rt
+        "accel" => Datapoints, ; axel_rt
+    }
+}
+
+;  Uplink: inference res 
+; Topic: v1/{node_id}/inference (QoS 1)
+InferencePacket = {
+  "id"         => uint,        ; segment_id  
+  "reason"     => EmitReason,  ; Why this packet was emitted
+  "r_m_id"     => uint,        ; router model ID
+  "ae_id"      => uint,        ; ae_m_id: ae model ID 
+  "mse"        => float,       ; mse_loss: Reconstruction loss
+  "anom"       => bool         ; is_anomaly  
+}
+
+NodeCapabilities = {
+  "accel_freqs" => [+ float],
+  "gyro_freqs"  => [+ float],
+  "enabled_ops" => [1*128 tstr]
+}
+
+;  Uplink: System Info & Telemetry 
+; Topic: v1/{node_id}/info/health (QoS 0/1)
+NodeHealthInfo = {
+  "ram"    => uint,            ; free_ram
+  "sd"     => uint,            ; free_sd
+  "cache"  => [+ uint],        ; cached_models: m_ids stored locally
+  "last"   => uint,            ; last_point_id: last read point id
+  ? "status" => tstr,           ; cmd_status: Execution status ("idle", "streaming_dump")
+  ? "caps"   => NodeCapabilities, ; model capabilities
+  
+  ; Dump statistics
+  ? "dump_t" => uint,           ; time took in ms
+  ? "dump_r" => bool,           ; is still reading SD card
+  ? "ips"    => float           ; inferences per second
+}
+
+;  Uplink: Alerts 
+; Topic: v1/{node_id}/alert/{severity} (QoS 1/2)
+NodeAlert = {
+  "code"   => uint,            ; Error code 
+  "detail" => tstr,            ; Description
+}
+
+;  Downlink: Command Triggers 
+; Topic: v1/{node_id}/cmd/{command_name} (QoS 1)
+Command = {
+  "dump"   => bool,            ; dump_all: Trigger a full data dump to the cloud
+  "dump_i" => bool,            ; dump_all_inf: Trigger info dump + inference
+  "reboot" => bool,            ; Trigger a device reboot
+}

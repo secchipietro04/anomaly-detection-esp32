@@ -1,67 +1,17 @@
-;  Architecture & Router Enums 
-model_arch_VA = 1       ; Variational Autoencoder (rt)
-model_arch_CA = 2       ; Convolutional Autoencoder (rt)
-model_arch_CLSTM = 3    ; Convolutional LSTM Autoencoder (rt)
-model_arch_DA = 4       ; Dense Autoencoder (ft)
-model_arch_FITS = 5     ; FITS in ft mode (ft)
-model_arch_TN = 6       ; TimesNet (rt)
 
-model_router_dense = 10     ; Dense Router (ft)
-model_router_MR = 11        ; MiniRocket Router
-model_router_STFTmCNN = 12  ; STFT + Micro-CNN Router
 
-ModelType = model_arch_VA / model_arch_CA / model_arch_CLSTM / 
-            model_arch_DA / model_arch_FITS / model_arch_TN / 
-            model_router_dense / model_router_MR / model_router_STFTmCNN
+StreamMode_Continuous  = 1  ; Stream continuously
+StreamMode_AnomalyOnly = 2  ; Stream only anomalies
+StreamMode_AnomalyOrPeriodic = 3  ; Anomaly-only + periodic baseline
+StreamMode_ContinuousScoreRawAnomaly = 4  ; Always score, raw only on anomaly
 
-;  Sensor Mode Enum
-mode_listen_only = 0
-mode_inference = 1
-SensorMode = mode_listen_only / mode_inference
+StreamMode = StreamMode_Continuous / StreamMode_AnomalyOnly / StreamMode_AnomalyOrPeriodic / StreamMode_ContinuousScoreRawAnomaly
 
-;  Device configuration updateable at runtime
-DeviceConfig = {
-  "seq_send_once" => uint,              ; sequential_segments_to_send_at_once
-  "seg_skip_between" => uint,           ; segments_to_skip_between_sends
-  "seg_read_before_inf" => uint,        ; segments_to_read_before_inference
-  "sensor_mode" => SensorMode,
-  "r_min_conf" => float                 ; Router min confidence (threshold)
-}
-
-;  Inference results output representation
-InferenceResult = {
-  "seg_id" => uint,                     ; segment ID
-  "m_id" => uint,                       ; model ID that ran (0 if early exit)
-  "score" => float,                     ; anomaly score
-  "r_id" => uint,                       ; router ID that decided the model
-  "r_conf" => float,                    ; confidence that that is the model
-  "is_anom" => bool                     ; whether it is an anomaly
-}
-
-;  Device command structure
-DeviceCommand = {
-  "cmd" => uint,                        ; command type (e.g. 1 = send_all_data, 2 = status_ping)
-  ? "param" => tstr                     ; optional parameter string
-}
-
-;  Device Status message
-DeviceStatus = {
-  "sd_used" => float,                   ; SD storage used (percentage or bytes)
-  "free_ram" => uint,                   ; Free RAM in bytes
-  "uptime" => uint,                     ; Uptime in seconds
-  "cpu_usage" => float                  ; CPU usage percentage
-}
-
-;  Model Capability representation
-ModelCapability = {
-  "m_id" => uint,
-  "name" => tstr,
-  "m_type" => ModelType
-}
-
-;  Sensor existence registration
-SensorRegistration = {
-  "mac" => tstr,                        ; MAC Address
-  "models" => [* ModelCapability],      ; Loaded model capabilities
-  "custom_ops" => [* tstr]              ; Enabled TFLite custom operations (adds)
+RuntimeConfig = {
+  "rate"  => float,         ; sample rate
+  "mode"  => StreamMode,    ; stream mode
+  "batch" => uint,          ; batch size (MQTT points)
+  ? "cad" => uint,          ; mixed cadence (N reads)
+  "beat"  => uint,          ; heartbeat (s)
+  "sd_en" => bool           ; enable SD 
 }

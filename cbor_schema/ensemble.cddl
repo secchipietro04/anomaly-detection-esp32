@@ -1,58 +1,13 @@
-; Runtime Functional Archetypes
-archetype_autoencoder = 1  ; Reconstructs spectrum -> Computes MSE loss
-archetype_router      = 2  ; Classifies mode -> Computes argmax for submodel routing
-archetype_memory      = 3  ; Stateful recurrent step -> Updates h_state & c_state
-
-ModelArchetype = archetype_autoencoder / archetype_router / archetype_memory
-
-; Informational tags for debugging / telemetry
-arch_tag_VA         = 1
-arch_tag_CA         = 2
-arch_tag_CLSTM      = 3
-arch_tag_DA         = 4
-arch_tag_FITS       = 5
-arch_tag_TN         = 6
-arch_tag_dense_r    = 10
-arch_tag_stft_mcnn  = 12
-arch_tag_1d_cnn_r   = 13
-arch_tag_lstm_mem   = 20
-
-ArchitectureTag = uint
-
-; Loss Modes
-LossMode_LogMSE    = 1  ; MSE directly on ln(1+X)
-LossMode_LinearMSE = 2  ; MSE after expm1(X)
-
-LossMode = LossMode_LogMSE / LossMode_LinearMSE
-
-; Top-level payload options for individual OTA transmissions
-Payload = ModelPackage / EnsembleConfig
-
-; 1. Standalone Model Package (sent individually per model)
-ModelPackage = {
-  "m_id"       => uint,            ; Unique Model ID
-  "archetype"  => ModelArchetype,   ; Runtime execution contract
-  ? "arch_tag" => ArchitectureTag,  ; Metadata tag
-  "t_steps"    => uint,            ; Temporal depth (1 for instantaneous, N for buffered)
-  "bins"       => uint,            ; Target frequency bins (256, 128, 64)
-  ? "mem_dim"  => uint,            ; Context dim 'd' consumed from memory (0 if none)
-  ? "state_dim"=> uint,            ; Internal recurrent state dim
-  ? "loss_mode"=> LossMode,        ; Loss computation mode (Autoencoders only)
-  "data"       => bstr             ; Raw .tflite model binary bytes
-}
-
-; 2. Router Routing Entry
 RouteEntry = {
-  "out_idx" => uint,               ; Router output class index (0 to num_modes-1)
-  "m_id"    => uint                ; Target Submodel ID to invoke
+  "out_ix" => uint,                ; Router output class idx
+  "m_id"   => uint                 ; Target submodel 
 }
 
-; 3. Ensemble Wiring Configuration (sent separately to link downloaded models)
 EnsembleConfig = {
-  "raw_bins"      => uint,         ; Input FFT width (e.g., 256)
-  "history_depth" => uint,         ; Shared ring buffer depth N (e.g., 16)
-  "warmup_steps"  => uint,         ; Steps to warm up before alerting
-  ? "mem_m_id"    => uint,         ; Optional Memory Model ID
-  "r_m_id"        => uint,         ; Active Router Model ID
-  "routes"        => [+ RouteEntry]; Mapping table
+  "warmup" => uint,                ; Steps to warm up before alerting
+  ? "mem_id" => uint,              ; Memory Model ID
+  "r_m_id" => uint,                ; router ID
+  "routes" => [+ RouteEntry]       ; Mapping table 
 }
+
+Payload = ModelPackage / EnsembleConfig
