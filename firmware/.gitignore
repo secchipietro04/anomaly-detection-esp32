@@ -1,0 +1,5 @@
+build/
+managed_components/
+Model/Sensor_Data
+venv/
+.cache

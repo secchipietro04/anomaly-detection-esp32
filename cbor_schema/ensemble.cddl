@@ -1,0 +1,13 @@
+RouteEntry = {
+  "out_ix" => uint,                ; Router output class idx
+  "m_id"   => uint                 ; Target submodel 
+}
+
+EnsembleConfig = {
+  "warmup" => uint,                ; Steps to warm up before alerting
+  ? "mem_id" => uint,              ; Memory Model ID
+  "r_m_id" => uint,                ; router ID
+  "routes" => [+ RouteEntry]       ; Mapping table 
+}
+
+Payload = ModelPackage / EnsembleConfig

@@ -1,0 +1,14 @@
+menu "ESP FFT Wrapper Configuration"
+    config ESP_FFT_WRAPPER_ENABLED
+        bool "Enable ESP FFT Wrapper"
+        default y
+        help
+            Enable the ESP-DSP optimized FFT wrapper component.
+
+    config ESP_FFT_MAX_SIZE
+        int "Maximum FFT size"
+        default 1024
+        range 32 4096
+        help
+            Set the maximum FFT window size supported by the wrapper tables.
+endmenu

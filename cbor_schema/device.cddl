@@ -1,0 +1,17 @@
+
+
+StreamMode_Continuous  = 1  ; Stream continuously
+StreamMode_AnomalyOnly = 2  ; Stream only anomalies
+StreamMode_AnomalyOrPeriodic = 3  ; Anomaly-only + periodic baseline
+StreamMode_ContinuousScoreRawAnomaly = 4  ; Always score, raw only on anomaly
+
+StreamMode = StreamMode_Continuous / StreamMode_AnomalyOnly / StreamMode_AnomalyOrPeriodic / StreamMode_ContinuousScoreRawAnomaly
+
+RuntimeConfig = {
+  "rate"  => float,         ; sample rate
+  "mode"  => StreamMode,    ; stream mode
+  "batch" => uint,          ; batch size (MQTT points)
+  ? "cad" => uint,          ; mixed cadence (N reads)
+  "beat"  => uint,          ; heartbeat (s)
+  "sd_en" => bool           ; enable SD 
+}

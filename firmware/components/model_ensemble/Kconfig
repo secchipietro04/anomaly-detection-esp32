@@ -1,0 +1,7 @@
+menu "Model Ensemble Configuration"
+    config MODEL_ENSEMBLE_ENABLED
+        bool "Enable Model Ensemble"
+        default y
+        help
+            Enable the Model Ensemble component that integrates routing and submodel execution.
+endmenu

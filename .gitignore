@@ -13,3 +13,7 @@ report/report.out
 report/report.synctex.gz
 report/report.toc
 .vscode/
+research-ml-edge.code-workspace
+firmware/.clangd
+firmware/main/cbor/*
+
