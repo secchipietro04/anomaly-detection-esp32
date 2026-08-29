@@ -13,6 +13,8 @@ class Node(BaseModel):
     registered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = "registered"
+    current_config: Optional[Dict[str, Any]] = None
+    settings: Optional[Dict[str, Any]] = None
 
 class NodeCapabilities(BaseModel):
     node_id: str
@@ -102,12 +104,17 @@ async def register_node(
         """,
         node_id, name, status
     )
+    cfg = row.get("current_config") if row and "current_config" in row else None
+    if isinstance(cfg, str):
+        cfg = json.loads(cfg)
     return Node(
         node_id=row["node_id"],
         name=row["name"],
         registered_at=row["registered_at"],
         last_seen=row["last_seen"],
-        status=row["status"]
+        status=row["status"],
+        current_config=cfg,
+        settings=cfg
     )
 
 async def get_node(conn: asyncpg.Connection, node_id: str) -> Optional[Node]:
@@ -118,27 +125,74 @@ async def get_node(conn: asyncpg.Connection, node_id: str) -> Optional[Node]:
     )
     if not row:
         return None
+    cfg = row.get("current_config") if "current_config" in row else None
+    if isinstance(cfg, str):
+        cfg = json.loads(cfg)
     return Node(
         node_id=row["node_id"],
         name=row["name"],
         registered_at=row["registered_at"],
         last_seen=row["last_seen"],
-        status=row["status"]
+        status=row["status"],
+        current_config=cfg,
+        settings=cfg
     )
 
 async def get_all_nodes(conn: asyncpg.Connection) -> List[Node]:
     # List all nodes
     rows = await conn.fetch("SELECT node_id, name, registered_at, last_seen, status FROM nodes ORDER BY registered_at DESC;")
-    return [
-        Node(
-            node_id=r["node_id"],
-            name=r["name"],
-            registered_at=r["registered_at"],
-            last_seen=r["last_seen"],
-            status=r["status"]
+    nodes = []
+    for r in rows:
+        cfg = r.get("current_config") if "current_config" in r else None
+        if isinstance(cfg, str):
+            cfg = json.loads(cfg)
+        nodes.append(
+            Node(
+                node_id=r["node_id"],
+                name=r["name"],
+                registered_at=r["registered_at"],
+                last_seen=r["last_seen"],
+                status=r["status"],
+                current_config=cfg,
+                settings=cfg
+            )
         )
-        for r in rows
-    ]
+    return nodes
+
+async def update_node_config(
+    conn: asyncpg.Connection,
+    node_id: str,
+    config: Dict[str, Any]
+) -> bool:
+    # update node runtime configuration settings
+    config_json = json.dumps(config)
+    res = await conn.execute(
+        """
+        UPDATE nodes
+        SET current_config = $1::jsonb,
+            last_seen = NOW()
+        WHERE node_id = $2;
+        """,
+        config_json, node_id
+    )
+    return "UPDATE 1" in res or "UPDATE" in res
+
+async def get_node_config(
+    conn: asyncpg.Connection,
+    node_id: str
+) -> Optional[Dict[str, Any]]:
+    # get active config jsonb for node
+    row = await conn.fetchrow(
+        "SELECT current_config FROM nodes WHERE node_id = $1;",
+        node_id
+    )
+    if not row or row.get("current_config") is None:
+        return None
+    cfg = row["current_config"]
+    if isinstance(cfg, str):
+        cfg = json.loads(cfg)
+    return cfg
+
 
 async def update_node_last_seen(conn: asyncpg.Connection, node_id: str) -> None:
     # update timestamp when node sends telemetry

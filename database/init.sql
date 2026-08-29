@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     name VARCHAR(128),
     registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    status VARCHAR(32) NOT NULL DEFAULT 'registered'
+    status VARCHAR(32) NOT NULL DEFAULT 'registered',
+    current_config JSONB DEFAULT '{}'::jsonb
 );
 
 -- node capabilities reported via v1/+/info/caps

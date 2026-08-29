@@ -50,6 +50,8 @@ from app.cbor.codec import (
     decode_command,
     encode,
     decode,
+    encode_cbor,
+    decode_cbor,
 )
 
 __all__ = [
@@ -101,4 +103,6 @@ __all__ = [
     "decode_command",
     "encode",
     "decode",
+    "encode_cbor",
+    "decode_cbor",
 ]

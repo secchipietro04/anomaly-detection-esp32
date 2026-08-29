@@ -31,6 +31,8 @@ from app.database.models import (
     get_model,
     insert_ensemble,
     get_latest_ensemble,
+    update_node_config,
+    get_node_config,
 )
 
 __all__ = [
@@ -63,4 +65,6 @@ __all__ = [
     "get_model",
     "insert_ensemble",
     "get_latest_ensemble",
+    "update_node_config",
+    "get_node_config",
 ]

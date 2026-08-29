@@ -517,3 +517,8 @@ def decode(data: bytes, target_type: Optional[Type] = None) -> Any:
             return cbor2.loads(data)
         except Exception as e:
             raise CBORDecodeError(f"Corrupt CBOR byte stream: {e}") from e
+
+# aliases for explicit cbor encoding
+encode_cbor = encode
+decode_cbor = decode
+
