@@ -1,0 +1,87 @@
+{
+  "title": "Edge-AI Anomaly Detection",
+  "uid": "edge-ai-anomaly",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Anomaly Score (MSE) over time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp AS time, node_id, mse FROM inference_results WHERE $__timeFilter(timestamp) ORDER BY timestamp",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 0.1, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Anomaly Events",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp, node_id, segment_id, mse, anomaly, is_recalculated FROM inference_results WHERE anomaly = TRUE AND $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 50",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Node Health - RAM Free",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp AS time, node_id, ram_free FROM node_health WHERE $__timeFilter(timestamp) ORDER BY timestamp",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Sensor Status",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT node_id, status, last_seen, registered_at FROM nodes ORDER BY last_seen DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Raw Telemetry Volume per Sensor (bytes)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT node_id, SUM(raw_bytes_count) AS total_bytes FROM raw_telemetry GROUP BY node_id ORDER BY total_bytes DESC",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}
