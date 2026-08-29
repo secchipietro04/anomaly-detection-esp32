@@ -41,7 +41,7 @@ services:
       - postgres
 
   postgres:
-    image: postgres:18
+    image: timescale/timescaledb:latest-pg16
     container_name: postgres
     environment:
       POSTGRES_USER: emqx
@@ -51,8 +51,28 @@ services:
       - "5432:5432"
     volumes:
       - $PWD/dockerdata/postgres:/var/lib/postgresql
-      - $PWD/database/db.sql:/docker-entrypoint-initdb.d/init.sql
+      - $PWD/database/init.sql:/docker-entrypoint-initdb.d/init.sql
 
+    networks:
+      - emqx-postgres-bridge
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: backend
+    environment:
+      - MQTT_BROKER=emqx
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=emqx
+      - POSTGRES_PASSWORD=emqx
+      - POSTGRES_DB=emqx
+    depends_on:
+      emqx:
+        condition: service_healthy
+      postgres:
+        condition: service_started
     networks:
       - emqx-postgres-bridge
 
