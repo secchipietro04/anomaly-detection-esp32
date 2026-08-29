@@ -4,19 +4,21 @@ model_type_memory      = 3   ; memory model for recurrent states
 
 ModelType = model_type_autoencoder / model_type_router / model_type_memory
 
-arch_tag_VA         = 1
-arch_tag_CA         = 2
-arch_tag_CLSTM      = 3
-arch_tag_DA         = 4
-arch_tag_FITS       = 5
-arch_tag_TN         = 6
+arch_tag_VA         = 1 ;variational autoencoder
+arch_tag_CA_1D         = 2 ; convolutional autoencoder 1d
+arch_tag_CA_2D         = 3 ; convolutional autoencoder 2d
+arch_tag_CLSTM      = 4 ; convolutional LSTM
+arch_tag_DA         = 5 ; dense autoencoder
+arch_tag_FITS       = 6 ; Fourier transform based model
+arch_tag_TN         = 7 ; transformer network
 arch_tag_dense_r    = 10
 arch_tag_stft_mcnn  = 12
 arch_tag_1d_cnn_r   = 13
 arch_tag_lstm_mem   = 20
 
 ArchitectureTag = arch_tag_VA /
-                  arch_tag_CA /
+                  arch_tag_CA_1D /
+                  arch_tag_CA_2D /
                   arch_tag_CLSTM /
                   arch_tag_DA /
                   arch_tag_FITS /

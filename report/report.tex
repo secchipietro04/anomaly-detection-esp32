@@ -1,203 +1,160 @@
-% !TeX spellcheck = it_IT
-%
-% ---------------------------------------------------------------------
-%                 
-%              UniVR CS Implementazione di Modelli TinyML su ESP32 per il Rilevamento di Anomalie da Dati Vibrazionali con Infrastruttura Backend Centralizzata.  2025/2026
-%                                   AUTHORS:
-%                           
-%           VR501217 Pietro Giampaolo Secchi
-% ---------------------------------------------------------------------
-%
 
-
-\documentclass[a4paper,11pt]{article}
+\PassOptionsToPackage{table, dvipsnames}{xcolor}
+\documentclass[a4paper,twoside,12pt]{toptesi}
 \usepackage[T1]{fontenc}
-\usepackage[utf8x]{inputenc}
-\usepackage{hyperref} 
+\usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
-\usepackage{amsmath}
-\usepackage{calc}
-\usepackage[a4paper]{geometry}
-\usepackage[usenames,dvipsnames]{xcolor}
-\usepackage{fancyhdr} % Required for custom headers
-\usepackage{lastpage} % Required to determine the last page for the footer
-\usepackage{extramarks} % Required for headers and footers
-\usepackage{needspace}
-%\usepackage[usenames,dvipsnames]{color} % Required for custom colors
-\usepackage{graphicx} % Required to insert images
-\usepackage{listings} % Required for insertion of code
-\usepackage{courier} % Required for the courier font
-\usepackage{pdfpages}
-\usepackage{listings}
-\usepackage{mdframed}
-\usepackage{enumitem}
-\usepackage{minted}
-\usepackage{float}
-\renewcommand\listingscaption{}
-\newcommand\ceil[1]{\lceil#1\rceil}
-\usepackage{zi4}
+\usepackage{graphicx}
 \usepackage{tikz}
-
-\usetikzlibrary{automata, positioning, arrows,trees,arrows.meta}
-\usepackage{verbatim}
-\usepackage{url}
-\usepackage{doi}
-\usepackage{hyperref} % Required to create hyperlinks
-\usepackage{booktabs} % better tables
-
-\usepackage{forest}
-
-% Setting up hyperlinks settings
-\newcommand\myshade{85}
-\colorlet{mylinkcolor}{blue}
-\colorlet{mycitecolor}{YellowOrange}
-\colorlet{myurlcolor}{Blue}
+\usetikzlibrary{positioning}
+\usepackage{pgfplots}
+\usepackage[newfloat]{minted}
+\usepackage[font=small,skip=1pt]{caption}
+\usepackage{minted}
+\usepackage{rotating}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\captionsetup[listing]{position=top}
+\usepackage{subcaption}
+\pgfplotsset{compat=1.18}
+\usepackage{hyperref}
 \hypersetup{
-	colorlinks=true,
-	linkcolor=blue,
-	citecolor=blue,
-	urlcolor=blue
+    colorlinks = true,
+    allcolors=black,
+    %personalizzare i metadati
+    pdftitle={titolo},
+    pdfauthor={autore},
+    pdfsubject={Tesi},
+    pdfkeywords={keyword1; keyword2; keyword3}
 }
+%This equals 1.5 linespacing in Word
+\linespread{1.25}
+\usepackage{microtype} % Migliora la spaziatura complessiva
+\sloppy
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{fancyhdr} % nel preambolo, se non già incluso
+\usepackage{graphicx} % per il logo
+\usepackage{ifthen}   % per i controlli condizionali (facoltativo ma utile)
+\usepackage{float}
+\usepackage{svg}
+    \usepackage{booktabs}        
+    \usepackage{listings}
 
 
-% Setting up tikz attributes globally
-\tikzset{
-	->, % makes the edges directed
-	>=stealth', % makes the arrow heads bold
-	node distance=5.5cm, % specifies the minimum distance between two nodes. Change if necessary.
-	every state/.style={thick, fill=gray!10}, % sets the properties for each 'state' node
-	initial text=play, % sets the text that appears on the start arrow
-	initial distance=2.1cm,
-}
+\usepackage{needspace}
+    \usepackage{algorithm}
+\usepackage{algpseudocode}
 
-\newenvironment{framescelte}[1]
-{\mdfsetup{
-		frametitle={\colorbox{white}{\space#1\space}},
-		innertopmargin=6pt,
-		frametitleaboveskip=-\ht\strutbox,
-		frametitlealignment=\center
-	}
-	\begin{mdframed}%
-	}
-	{\end{mdframed}}
+\usepackage{amssymb}
+    \usetikzlibrary{shapes,arrows,positioning,calc,arrows.meta,shapes.geometric,shadows}                                                                                                                                                                                      
 
-\newenvironment{framescelte2}[1]
-{%
-	\mdfsetup{
-		frametitle={\colorbox{white}{\space#1\space}},
-		innertopmargin=6pt,
-		frametitleaboveskip=-\ht\strutbox,
-		frametitlealignment=\center,
-		skipabove=\baselineskip,
-		skipbelow=\baselineskip,
-		nobreak=true % <- prevents page breaks inside the frame
-	}%
-	\begin{mdframed}
-	}
-	{\end{mdframed}}
+% evita che tagli le parole quando deve andare sulla nuova linea
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+% per la tabella di comparazione prot bin
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\raggedbottom
+\let\savedlisting\listing
+\AtBeginDocument{\let\listing\savedlisting}
 
+\def\dept{DIPARTIMENTO DI INFORMATICA}
+\def\course{CORSO DI LAUREA IN INFORMATICA}
+%\def\course{CORSO DI LAUREA IN INFORMATICA E \\ TECNOLOGIE PER LA PRODUZIONE DEL SOFTWARE}
+%\def\course{CORSO DI LAUREA MAGISTRALE IN INFORMATICA}
+%\def\course{CORSO DI LAUREA MAGISTRALE IN SICUREZZA INFORMATICA}
+\def\title{Implementazione di modelli TinyML su ESP32 per il rilevamento di anomalie da dati vibrazionali con infrastruttura backend centralizzata}
+\def\author{Secchi Pietro Giampaolo}
+\def\relatoreone{Prof. Michele Pasqua}
+%\def\relatoretwo{Prof.ssa Nome Cognome}
+%\def\correlatoreone{Dott.ssa Nome Cognome}
+%\def\correlatoretwo{Dott. Nome Cognome}
 
-% Margins
-\topmargin=-0.45in
-\evensidemargin=0in
-\oddsidemargin=0in
-\textwidth=6.25in
-\textheight=9in
-\headsep=0.25in
+\def\annoacc{2025 - 2026}
+\def\beforecandidate{LAUREANDO:}
+\def\beforetitle{TESI DI LAUREA IN }
+\def\subject{INFORMATICA} 
+\def\beforeprof{RELATORI:}
+\def\beforecorrelatore{CORRELATORI:}
+\def\beforeannoacc{ANNO ACCADEMICO}
 
-\linespread{1.1} % Line spacing
+\makeatletter
+\def\cleardoublepage{\clearpage\if@twoside \ifodd\c@page\else
+    \hbox{}
+    \vspace*{\fill}
+    \vspace{\fill}
+    \thispagestyle{empty}
+    \newpage
+    \if@twocolumn\hbox{}\newpage\fi\fi\fi}
+    \setlength{\@fptop}{0pt}
+\makeatother
 
-
-% Set up the header and footer
-\pagestyle{fancy}
-%\lhead{\hmwkAuthorName} % Top left header
-\chead{} % Top center head
-\rhead{\hmwkTitle} % Top right header
-%\cfoot{} % Bottom center footer
-%\rfoot{Page\ \thepage\ of\ \protect\pageref{LastPage}} % Bottom right footer
-\renewcommand\headrulewidth{0.4pt} % Size of the header rule
-\renewcommand\footrulewidth{0.4pt} % Size of the footer rule
-
-%------------------------------------------------------------------------------------
-%	TITOLO
-%------------------------------------------------------------------------------------
-%----------------------------------------------------------------------------------------
-%	NAME AND CLASS SECTION
-%----------------------------------------------------------------------------------------
-
-\newcommand{\hmwkTitle}{Implementazione di Modelli TinyML su ESP32 per il Rilevamento di Anomalie da Dati Vibrazionali con Infrastruttura Backend Centralizzata}
-\newcommand{\insertLogo}[1][2cm]{\includegraphics[width=#1]{assets/images/LogoUniversitàVerona.png}}
-\newcommand{\hmwkClass}{Tesi di laurea triennale}
-\newcommand{\hmwkAuthorName}{Pietro Giampaolo Secchi (VR501217)}
-
-%------------------------------------------------------------------------------------
-%	TITLE PAGE
-%------------------------------------------------------------------------------------
-
-
-\title{
-	\insertLogo[8cm] \\
-	\vspace{0.7in}
-	\textmd{\textbf{\hmwkClass:\\ \hmwkTitle}}\\
-	\vspace{0.1in}\large{\textit{\hmwkAuthorName}}
-	\date{}
-}
-
-
-%\author{}
-
-%------------------------------------------------------------------------------------
-
-
-%------------------------------------------------------------------------------------
-%	FORMATTAZIONE ELEMENTI
-%------------------------------------------------------------------------------------
-\renewcommand*{\ttdefault}{zi4}
-\newcommand{\stato}[1]{\textbf{\fontfamily{zi4}\selectfont #1}}
-\newcommand{\signin}[1]{\textcolor{Blue}{\fontfamily{zi4}\selectfont #1}}
-\newcommand{\signout}[1]{\textcolor{BrickRed}{\fontfamily{zi4}\selectfont #1}}
-\newcommand{\inctxt}[1]{\textit{\fontfamily{zi4}\selectfont #1}}
-%------------------------------------------------------------------------------------
-
-
-\lstdefinestyle{BashStyle}{
-	language=bash,
-	basicstyle=\ttfamily,
-	numbers=left,
-	numberstyle=\tiny\ttfamily\color{black},
-	numbersep=-10pt,
-	frame=tb,
-	columns=fullflexible,
-	title=\textit{},
-	emph={souce, ps, map, -s, rl, rlib},emphstyle={\bfseries}
-}
-
-\lstset{
-	language=C,
-	basicstyle=\ttfamily\small,
-	keywordstyle=\color{blue}\bfseries,
-	commentstyle=\color{green!50!black},
-	stringstyle=\color{red},
-	numbers=left,
-	numberstyle=\tiny\color{gray},
-	stepnumber=1,
-	numbersep=8pt,
-	frame=single,
-	showstringspaces=false,
-	tabsize=4,
-	breaklines=true,
-	captionpos=b
-}
 
 \begin{document}
-	\maketitle
-	\newpage
-	\tableofcontents
-	\newpage
+
+\begin{titlepage}
+\begin{tikzpicture}[remember picture,overlay]
+	\centering
+	\node[text width=40em, align=center, yshift=-6cm] (course) at (current page.north) {\normalsize \course};
+	\node[text width=35em, align=center, yshift=1.2cm, below=of course] (line) {\par\noindent\rule{\textwidth}{0.4pt}};
+	\node[text width=40em, align=center, yshift=.55cm, below=of line] (lia) {\normalsize \beforetitle \xspace \subject};
+
+		
+  \node[text width=40em, align = center, yshift=-0.5cm,below = of lia](title){\bfseries \parbox{12cm}{\fontsize{21pt}{20pt}\selectfont \centering \title\par}};
+  
+	\node[text width=35em, align = left, yshift=-1cm,below = of title](relatoretit){\normalsize \textbf{\beforeprof} };
+ 	\node[text width=35em, align = left, yshift=1cm,below = of relatoretit](relatore){\large \relatoreone \\ 
+ 		%\relatoretwo
+ 		};
+
+  	%\node[text width=35em, align = left, yshift=0.5cm,below = of relatore](correlatoretit){\normalsize \textbf{\beforecorrelatore}  };
+     %\node[text width=35em, align = left, yshift=1cm,below = of correlatoretit](correlatore){\large \correlatoreone \\ \correlatoretwo};
+      
+		\node[text width=35em, align = right, yshift=-1cm,below = of title](candidatetit){\normalsize \textbf{\beforecandidate}};
+		 \node[text width=35em, align = right, yshift=1cm,below = of candidatetit](candidate){\large \author};
+
+  \node[text width=35em,align = center,  yshift= -3cm,below = of candidate](line2){\par\noindent\rule{\textwidth}{0.4pt}};
 	
-	
-	
-	\nocite{*}
-\bibliographystyle{IEEEtran}
-	\bibliography{references}
+  
+  \node[text width=50em, align = center, yshift=0.5cm,below = of line2](year){\large \beforeannoacc\xspace \annoacc};
+	\end{tikzpicture}
+\end{titlepage}
+
+\newpage
+
+\cleardoublepage
+
+%\include{dedica}
+%\cleardoublepage
+%\pagenumbering{roman}
+%\include{note}
+%\cleardoublepage
+\tableofcontents
+\cleardoublepage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\addcontentsline{toc}{chapter}{Introduction}
+\include{Introduction}
+
+\newpage
+\include{Chap1}
+\newpage
+\include{Chap2}
+\newpage
+\include{Chap3}
+\newpage
+\include{Chap4}
+\newpage
+\include{Chap5}
+\newpage
+\include{Chap6}
+\newpage
+\include{Chap7}
+
+\bibliographystyle{apalike}  
+\nocite{*}
+\bibliography{references}
+
+%\include{ringraziamenti}
 \end{document}
