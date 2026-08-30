@@ -3,15 +3,16 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 -- nodes registry
 CREATE TABLE IF NOT EXISTS nodes (
-    node_id         VARCHAR(64)  PRIMARY KEY,
-    name            VARCHAR(128),
-    registered_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_seen       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    status          VARCHAR(32)  NOT NULL DEFAULT 'registered',
-    current_config  JSONB
+    node_id                 VARCHAR(64)  PRIMARY KEY,
+    name                    VARCHAR(128),
+    registered_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    last_seen               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    status                  VARCHAR(32)  NOT NULL DEFAULT 'registered',
+    current_config          JSONB,
+    last_trained_segment_id BIGINT       NOT NULL DEFAULT 0
 );
 
--- node capabilities (enabled tflite ops, supported freqs)
+-- node capabilities
 CREATE TABLE IF NOT EXISTS node_capabilities (
     node_id     VARCHAR(64) PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
     accel_freqs DOUBLE PRECISION[] NOT NULL DEFAULT '{}',
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS node_health (
     ips             DOUBLE PRECISION NOT NULL DEFAULT 0.0
 );
 
--- raw vibration telemetry (hypertable)
+-- raw vibration telemetry
 CREATE TABLE IF NOT EXISTS raw_telemetry (
     id              BIGSERIAL,
     node_id         VARCHAR(64)  NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
@@ -56,7 +57,7 @@ CREATE TABLE IF NOT EXISTS raw_telemetry (
 SELECT create_hypertable('raw_telemetry', 'timestamp', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_raw_telemetry_node_seg ON raw_telemetry (node_id, segment_id);
 
--- inference results (hypertable)
+-- inference results
 CREATE TABLE IF NOT EXISTS inference_results (
     id                    BIGSERIAL,
     node_id               VARCHAR(64)  NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
@@ -78,6 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_inference_node_seg ON inference_results (node_id,
 -- model binaries
 CREATE TABLE IF NOT EXISTS models (
     id            BIGINT PRIMARY KEY,
+    node_id       VARCHAR(64),
     tag           INTEGER,
     model_type    INTEGER NOT NULL,
     tflite_binary BYTEA   NOT NULL,
