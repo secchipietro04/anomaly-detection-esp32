@@ -1,30 +1,32 @@
-# CBOR data models and CDDL schemas
+# pydantic v2 schemas matching cddl definitions
 from enum import IntEnum
 from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ConfigDict
 
-# Emission reason enumeration
-class EmitReason(IntEnum):
-    CONTINUOUS = 1
-    ANOMALY = 2
-    PERIODIC = 3
-    MANUAL_DUMP = 4
-
-# stream mode enumeration
 class StreamMode(IntEnum):
+    # stream modes defined in telemetry.cddl
     CONTINUOUS = 1
     ANOMALY_ONLY = 2
     ANOMALY_OR_PERIODIC = 3
     CONTINUOUS_SCORE_RAW_ANOMALY = 4
 
-# model archetype enumeration
+class EmitReason(IntEnum):
+    # telemetry emission reasons
+    CONTINUOUS = 1
+    CADENCE = 2
+    ANOMALY = 3
+    ANOMALY_AFTERMATH = 4
+    BURST = 5
+    DUMP = 6
+
 class ModelType(IntEnum):
+    # model types from model.cddl
     AUTOENCODER = 1
     ROUTER = 2
     MEMORY = 3
 
-# architecture tags
 class ArchitectureTag(IntEnum):
+    # architecture tags
     VA = 1
     CA_1D = 2
     CA_2D = 3
@@ -37,153 +39,88 @@ class ArchitectureTag(IntEnum):
     ONE_D_CNN_R = 13
     LSTM_MEM = 20
 
-# Loss mode enumeration
 class LossMode(IntEnum):
+    # reconstruction loss mode
     LOG_MSE = 1
     LINEAR_MSE = 2
 
-# 3-axis motion datapoints
-class Datapoints(BaseModel):
-    x: List[float] = Field(default_factory=list)
-    y: List[float] = Field(default_factory=list)
-    z: List[float] = Field(default_factory=list)
+class RuntimeConfig(BaseModel):
+    # runtime configuration sent to sensor
+    model_config = ConfigDict(extra="ignore")
 
-# segment data container
-class SegmentData(BaseModel):
-    gyro: Datapoints = Field(default_factory=Datapoints)
-    accel: Datapoints = Field(default_factory=Datapoints)
+    mode: int = Field(ge=1, le=4)
+    rate: float = Field(gt=0)
+    beat: int = Field(gt=0)
+    batch: int = Field(gt=0)
+    sd_en: bool = False
+    cad: Optional[int] = Field(default=None, gt=0)
 
-# raw telemetry segment
-class Segment(BaseModel):
-    id: int
-    rate: float
-    reason: int
-    chunk: int = 1
-    data: SegmentData
-
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_input(cls, data: Any) -> Any:
-        # handle alias keys like start/end for id
-        if isinstance(data, dict):
-            if "id" not in data and "start" in data:
-                data["id"] = data["start"]
-            # handle flat accel/gyro passed directly
-            if "data" not in data and ("accel" in data or "gyro" in data):
-                data["data"] = {
-                    "accel": data.get("accel", {}),
-                    "gyro": data.get("gyro", {})
-                }
-        return data
-
-# edge inference packet
-class InferencePacket(BaseModel):
-    id: int
-    reason: int
-    r_m_id: int
-    ae_id: int
-    mse: float
-    anom: bool
-
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_input(cls, data: Any) -> Any:
-        # normalize aliases for id and model ids
-        if isinstance(data, dict):
-            if "id" not in data and "start" in data:
-                data["id"] = data["start"]
-            if "r_m_id" not in data and "router_model_id" in data:
-                data["r_m_id"] = data["router_model_id"]
-            if "ae_id" not in data and "autoencoder_model_id" in data:
-                data["ae_id"] = data["autoencoder_model_id"]
-        return data
-
-# node capabilities
 class NodeCapabilities(BaseModel):
+    # sensor capabilities payload
+    model_config = ConfigDict(extra="ignore")
+
     accel_freqs: List[float] = Field(default_factory=list)
     gyro_freqs: List[float] = Field(default_factory=list)
     enabled_ops: List[str] = Field(default_factory=list)
 
-# node health telemetry
 class NodeHealthInfo(BaseModel):
-    ram: int
-    sd: int
+    # periodic health heartbeat
+    model_config = ConfigDict(extra="ignore")
+
+    ram: int = 0
+    sd_ok: bool = False
     cache: List[int] = Field(default_factory=list)
-    last: int = 0
-    status: Optional[str] = "idle"
-    caps: Optional[NodeCapabilities] = None
-    dump_t: Optional[int] = None
-    dump_r: Optional[bool] = None
-    ips: Optional[float] = 0.0
+    seg_id: int = 0
+    stat: str = "idle"
+    ips: float = 0.0
 
-# Alert packet
-class NodeAlert(BaseModel):
-    code: int
-    detail: str
+class Segment(BaseModel):
+    # raw telemetry segment payload
+    model_config = ConfigDict(extra="ignore")
 
-# downlink command
-class Command(BaseModel):
-    dump: bool = False
-    dump_i: bool = False
-    reboot: bool = False
-
-# runtime configuration
-class RuntimeConfig(BaseModel):
+    id: int
+    chunk: int = 1
     rate: float
-    mode: int
-    batch: int
-    cad: Optional[int] = None
-    beat: int
-    sd_en: bool
+    reason: int
+    ax: List[float] = Field(default_factory=list)
+    ay: List[float] = Field(default_factory=list)
+    az: List[float] = Field(default_factory=list)
+    gx: List[float] = Field(default_factory=list)
+    gy: List[float] = Field(default_factory=list)
+    gz: List[float] = Field(default_factory=list)
 
-# routing entry
-class RouteEntry(BaseModel):
-    out_ix: int
-    m_id: int
+class InferencePacket(BaseModel):
+    # inference packet from edge
+    model_config = ConfigDict(extra="ignore")
 
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_input(cls, data: Any) -> Any:
-        # support out_idx alias
-        if isinstance(data, dict):
-            if "out_ix" not in data and "out_idx" in data:
-                data["out_ix"] = data["out_idx"]
-        return data
+    seg_id: int
+    reason: int
+    r_m_id: Optional[int] = None
+    ae_m_id: Optional[int] = None
+    mse: float
+    anomaly: bool
 
-# ensemble configuration
-class EnsembleConfig(BaseModel):
-    warmup: int
-    r_m_id: int
-    routes: List[RouteEntry] = Field(default_factory=list)
-    mem_id: Optional[int] = None
-
-# base model package
 class BaseModelPackage(BaseModel):
+    # base model package
+    model_config = ConfigDict(extra="ignore")
+
     m_id: int
     tag: Optional[int] = None
     data: bytes
 
-# memory model package
-class MemoryModelPackage(BaseModelPackage):
-    type: int = int(ModelType.MEMORY)
-    accel_bins: int
-    gyro_bins: int
-    outdim: int
-    state: int
-
-# autoencoder model package
 class AutoencoderModelPackage(BaseModelPackage):
+    # autoencoder package definition
     type: int = int(ModelType.AUTOENCODER)
     accel_bins: int
     gyro_bins: int
     tsteps: int
     mem_d: Optional[int] = None
     limit: float
-    loss: int
+    loss: int = int(LossMode.LOG_MSE)
     skip: Optional[int] = None
 
-# router model package
 class RouterModelPackage(BaseModelPackage):
+    # router model package
     type: int = int(ModelType.ROUTER)
     accel_bins: int
     gyro_bins: int
@@ -191,10 +128,26 @@ class RouterModelPackage(BaseModelPackage):
     mem_d: Optional[int] = None
     class_count: int = Field(alias="class")
 
-    model_config = {
-        "populate_by_name": True
-    }
+class MemoryModelPackage(BaseModelPackage):
+    # recurrent memory model package
+    type: int = int(ModelType.MEMORY)
+    accel_bins: int
+    gyro_bins: int
+    outdim: int
+    state: int
 
-# Union types for generic parsing
-ModelPackageUnion = Union[AutoencoderModelPackage, RouterModelPackage, MemoryModelPackage]
-PayloadUnion = Union[AutoencoderModelPackage, RouterModelPackage, MemoryModelPackage, EnsembleConfig]
+class RouteEntry(BaseModel):
+    # single routing entry
+    model_config = ConfigDict(extra="ignore")
+
+    out_ix: int
+    m_id: int
+
+class EnsembleConfig(BaseModel):
+    # lightweight ensemble routing table payload
+    model_config = ConfigDict(extra="ignore")
+
+    warmup: int = 0
+    r_m_id: Optional[int] = None
+    mem_id: Optional[int] = None
+    routes: List[RouteEntry] = Field(default_factory=list)
