@@ -1,16 +1,16 @@
 {
-  "title": "Edge-AI Anomaly Detection",
+  "title": "Edge-AI Vibration & Model Dashboard",
   "uid": "edge-ai-anomaly",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": { "from": "now-1h", "to": "now" },
   "panels": [
     {
       "id": 1,
-      "title": "Anomaly Score (MSE) over time",
+      "title": "Anomaly Score (MSE) over Time",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 8 },
       "datasource": "TimescaleDB",
       "targets": [
         {
@@ -33,22 +33,9 @@
     },
     {
       "id": 2,
-      "title": "Anomaly Events",
-      "type": "table",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
-      "datasource": "TimescaleDB",
-      "targets": [
-        {
-          "rawSql": "SELECT timestamp, node_id, segment_id, mse, anomaly, is_recalculated FROM inference_results WHERE anomaly = TRUE AND $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 50",
-          "format": "table"
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "title": "Node Health - RAM Free",
+      "title": "Node Health (RAM Free & SD Status)",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
       "datasource": "TimescaleDB",
       "targets": [
         {
@@ -58,23 +45,49 @@
       ]
     },
     {
-      "id": 4,
-      "title": "Sensor Status",
+      "id": 3,
+      "title": "Active Deployed Ensembles",
       "type": "table",
-      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 },
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT node_id, status, last_seen, registered_at FROM nodes ORDER BY last_seen DESC",
+          "rawSql": "SELECT deployed_at, node_id, router_model_id, memory_model_id, total_size_bytes, routes FROM ensembles ORDER BY deployed_at DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Trained Models Library in Database",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT id AS model_id, node_id, model_type, tag, size_bytes, created_at FROM models ORDER BY created_at DESC LIMIT 50",
           "format": "table"
         }
       ]
     },
     {
       "id": 5,
-      "title": "Raw Telemetry Volume per Sensor (bytes)",
+      "title": "Node Hardware Capabilities & Enabled Ops",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 6 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT node_id, accel_freqs, gyro_freqs, enabled_ops, updated_at FROM node_capabilities ORDER BY updated_at DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Raw Telemetry Volume per Sensor (Bytes)",
       "type": "bargauge",
-      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 6 },
       "datasource": "TimescaleDB",
       "targets": [
         {

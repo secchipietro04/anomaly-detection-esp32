@@ -1,9 +1,8 @@
-# full stack: emqx, timescaledb, backend worker, fastapi, grafana, clearml
+# separated backend microservices: mqtt_service, api_service, nas_service, timescaledb, emqx, grafana, clearml
 version: "3.9"
 
 services:
 
-  # --- timescaledb ---
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: tsdb
@@ -23,7 +22,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- emqx mqtt broker ---
   emqx:
     image: emqx/emqx:5.7.0
     container_name: emqx
@@ -46,14 +44,13 @@ services:
       timeout: 10s
       retries: 5
 
-  # --- mqtt ingestion worker ---
-  backend_worker:
+  mqtt_service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: backend_worker
+    container_name: mqtt_service
     restart: unless-stopped
-    command: python main.py
+    command: python app/worker_mqtt.py
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -62,25 +59,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
-      NAS_DATA_THRESHOLD_BYTES: 1048576
-      RAM_LIMIT_BYTES: 4194304
-      CLEARML_API_HOST: http://clearml_server:8008
-      CLEARML_WEB_HOST: http://clearml_server:8080
-      CLEARML_FILES_HOST: http://clearml_server:8081
-      CLEARML_ACCESS_KEY: ${CLEARML_ACCESS_KEY:-}
-      CLEARML_SECRET_KEY: ${CLEARML_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
       emqx:
         condition: service_healthy
 
-  # --- fastapi rest api ---
-  api:
+  api_service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: backend_api
+    container_name: api_service
     restart: unless-stopped
     command: uvicorn app.api.server:app --host 0.0.0.0 --port 8000
     ports:
@@ -93,9 +82,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
-      CLEARML_API_HOST: http://clearml_server:8008
-      CLEARML_ACCESS_KEY: ${CLEARML_ACCESS_KEY:-}
-      CLEARML_SECRET_KEY: ${CLEARML_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,7 +93,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- grafana ---
+  nas_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nas_service
+    restart: unless-stopped
+    command: python app/worker_nas.py
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-emqx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
+      POSTGRES_DB: ${POSTGRES_DB:-emqx}
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
+      CLEARML_API_HOST: http://clearml_server:8008
+      CLEARML_WEB_HOST: http://clearml_server:8080
+      CLEARML_FILES_HOST: http://clearml_server:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+
   grafana:
     image: grafana/grafana:10.4.2
     container_name: grafana
@@ -126,7 +135,6 @@ services:
       postgres:
         condition: service_healthy
 
-  # --- clearml server (apiserver + webserver + fileserver) ---
   clearml_elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
     container_name: clearml_es
@@ -177,7 +185,6 @@ services:
         condition: service_healthy
       clearml_mongo:
         condition: service_healthy
-
 
 volumes:
   tsdb_data:
