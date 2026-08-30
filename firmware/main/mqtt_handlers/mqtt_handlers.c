@@ -301,5 +301,14 @@ void mqtt_handlers_init(mqtt_wrapper_t *mqtt_client, quad_buffer_t *qb) {
         
         snprintf(topic, sizeof(topic), "v1/%s/ensemble", global_node_id);
         local_mqtt->subscribe(local_mqtt, topic, 1, ensemble_cb, NULL);
+        
+        snprintf(topic, sizeof(topic), "v1/%s/models/router/+", global_node_id);
+        local_mqtt->subscribe(local_mqtt, topic, 1, ensemble_cb, NULL);
+        
+        snprintf(topic, sizeof(topic), "v1/%s/models/memory/+", global_node_id);
+        local_mqtt->subscribe(local_mqtt, topic, 1, ensemble_cb, NULL);
+        
+        snprintf(topic, sizeof(topic), "v1/%s/models/submodel/+", global_node_id);
+        local_mqtt->subscribe(local_mqtt, topic, 1, ensemble_cb, NULL);
     }
 }
