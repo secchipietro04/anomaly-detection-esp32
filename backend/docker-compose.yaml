@@ -47,10 +47,9 @@ services:
   mqtt_service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: app/mqtt/Dockerfile
     container_name: mqtt_service
     restart: unless-stopped
-    command: python app/worker_mqtt.py
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -68,10 +67,9 @@ services:
   api_service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: app/api/Dockerfile
     container_name: api_service
     restart: unless-stopped
-    command: uvicorn app.api.server:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     environment:
@@ -96,10 +94,9 @@ services:
   nas_service:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: app/nas/Dockerfile
     container_name: nas_service
     restart: unless-stopped
-    command: python app/worker_nas.py
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
