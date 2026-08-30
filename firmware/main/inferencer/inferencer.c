@@ -83,9 +83,11 @@ static uint8_t* download_model(uint32_t model_id, size_t* out_size) {
     char path[64];
     snprintf(path, sizeof(path), "/sdcard/models/model_%u.bin", (unsigned int)model_id);
     char topic[128];
-    snprintf(topic, sizeof(topic), "v1/%s/model/%u", global_node_id, (unsigned int)model_id);
+    snprintf(topic, sizeof(topic), "v1/%s/models/submodel/%u", global_node_id, (unsigned int)model_id);
+    char fetch_topic[128];
+    snprintf(fetch_topic, sizeof(fetch_topic), "v1/%s/models/fetch/submodel/%u", global_node_id, (unsigned int)model_id);
     
-    ESP_LOGI(TAG, "model %u not on SD. subscribing to topic %s", (unsigned int)model_id, topic);
+    ESP_LOGI(TAG, "model %u not in cache/SD. subscribing to topic %s", (unsigned int)model_id, topic);
     current_downloading_model_id = model_id;
     
     // reset download pointers
@@ -100,12 +102,14 @@ static uint8_t* download_model(uint32_t model_id, size_t* out_size) {
     uint8_t *cbor_data = NULL;
     int sub_res = global_mqtt_client->subscribe(global_mqtt_client, topic, 1, model_mqtt_callback, NULL);
     if (sub_res >= 0) {
+        // notify cloud backend to push model if not retained
+        global_mqtt_client->publish(global_mqtt_client, fetch_topic, NULL, 0, 1, 0);
         // wait for data (15 sec timeout)
         if (xSemaphoreTake(mqtt_download_sem, pdMS_TO_TICKS(15000)) == pdTRUE) {
             cbor_data = downloaded_cbor;
             *out_size = downloaded_cbor_len;
             
-            // save downloaded model to SD
+            // save downloaded model to SD if available
             if (global_sd_enabled && cbor_data) {
                 sd_card_save_file(path, cbor_data, *out_size);
             }

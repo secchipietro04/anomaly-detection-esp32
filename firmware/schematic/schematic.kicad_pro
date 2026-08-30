@@ -424,20 +424,14 @@
     "reuse_designators": true,
     "subpart_first_id": 65,
     "subpart_id_separator": 0,
-    "top_level_sheets": [
-      {
-        "filename": "schematic.kicad_sch",
-        "name": "schematic",
-        "uuid": "8d1c683b-a5b9-421e-96a4-dfceecf22cfe"
-      }
-    ],
+    "top_level_sheets": [],
     "used_designators": "#PWR1-2,K1-2,R1,JP1-2,H1-2,C1-7,FD1,U1-4",
     "variants": []
   },
   "sheets": [
     [
       "8d1c683b-a5b9-421e-96a4-dfceecf22cfe",
-      "schematic"
+      ""
     ]
   ],
   "text_variables": {},
