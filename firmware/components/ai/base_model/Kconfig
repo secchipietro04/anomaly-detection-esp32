@@ -1,20 +1,63 @@
 menu "AI Engine Configuration"
 
-    config AI_ENABLE_CA
-        bool "Enable Convolutional Autoencoder (CA)"
+    config AI_ENABLE_DA
+        bool "Enable Dense Autoencoder (DA)"
+        default y
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        select TFL_USE_SUB
+        select TFL_USE_SQUARE
+        select TFL_USE_MEAN
+        help
+            Enables operator registration for Dense Autoencoder (DA) model.
+
+    config AI_ENABLE_VA
+        bool "Enable Variational Autoencoder (VA)"
+        default y
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RELU
+        select TFL_USE_EXP
+        select TFL_USE_MUL
+        select TFL_USE_ADD
+        select TFL_USE_SUB
+        select TFL_USE_SQUARE
+        select TFL_USE_MEAN
+        help
+            Enables operator registration for Variational Autoencoder (VA) model.
+
+    config AI_ENABLE_CA_1D
+        bool "Enable Convolutional Autoencoder 1D (CA 1D)"
         default y
         select TFL_USE_CONV_2D
         select TFL_USE_TRANSPOSE_CONV
         select TFL_USE_MAX_POOL_2D
-        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_RESHAPE
         select TFL_USE_RELU
+        select TFL_USE_SUB
+        select TFL_USE_SQUARE
+        select TFL_USE_MEAN
         help
-            Enables operator registration for Convolutional Autoencoder (CA) model.
+            Enables operator registration for 1D Convolutional Autoencoder model.
 
-    config AI_ENABLE_CLSTM
-        bool "Enable Convolutional LSTM (CLSTM)"
+    config AI_ENABLE_CA_2D
+        bool "Enable Convolutional Autoencoder 2D (CA 2D)"
         default y
         select TFL_USE_CONV_2D
+        select TFL_USE_TRANSPOSE_CONV
+        select TFL_USE_MAX_POOL_2D
+        select TFL_USE_RESHAPE
+        select TFL_USE_RELU
+        select TFL_USE_SUB
+        select TFL_USE_SQUARE
+        select TFL_USE_MEAN
+        help
+            Enables operator registration for 2D Convolutional Autoencoder model.
+
+    config AI_ENABLE_CLSTM
+        bool "Enable Convolutional LSTM Autoencoder (CLSTM)"
+        default y
+        select TFL_USE_CONV_2D
+        select TFL_USE_TRANSPOSE_CONV
         select TFL_USE_UNIDIRECTIONAL_SEQUENCE_LSTM
         select TFL_USE_RESHAPE
         select TFL_USE_FULLY_CONNECTED
@@ -23,40 +66,20 @@ menu "AI Engine Configuration"
         select TFL_USE_LOGISTIC
         select TFL_USE_MUL
         select TFL_USE_ADD
+        select TFL_USE_SUB
+        select TFL_USE_SQUARE
+        select TFL_USE_MEAN
         help
-            Enables operator registration for Convolutional LSTM (CLSTM) model.
+            Enables operator registration for Convolutional LSTM Autoencoder (CLSTM) model.
 
-    config AI_ENABLE_DENSE
-        bool "Enable Flat Dense (DA / Dense Router)"
+    config AI_ENABLE_DENSE_R
+        bool "Enable Fully Connected / Dense Router"
         default y
         select TFL_USE_FULLY_CONNECTED
         select TFL_USE_RELU
         select TFL_USE_SOFTMAX
         help
-            Enables operator registration for Dense Autoencoder and Dense Router.
-
-    config AI_ENABLE_FITS
-        bool "Enable FITS"
-        default y
-        select TFL_USE_RFFT
-        select TFL_USE_IRFFT
-        select TFL_USE_FULLY_CONNECTED
-        select TFL_USE_ADD
-        select TFL_USE_MUL
-        help
-            Enables operator registration for FITS model.
-
-    config AI_ENABLE_MINIROCKET
-        bool "Enable MiniRocket Router"
-        default y
-        select TFL_USE_CONV_2D
-        select TFL_USE_FULLY_CONNECTED
-        select TFL_USE_ADD
-        select TFL_USE_MUL
-        select TFL_USE_GREATER
-        select TFL_USE_MEAN
-        help
-            Enables operator registration for MiniRocket Router.
+            Enables operator registration for Dense Router.
 
     config AI_ENABLE_STFTMCNN
         bool "Enable STFT + Micro-CNN Router"
@@ -67,34 +90,31 @@ menu "AI Engine Configuration"
         select TFL_USE_SOFTMAX
         select TFL_USE_MAX_POOL_2D
         help
-            Enables operator registration for STFT + Micro-CNN Router.
+            Enables operator registration for STFT + Micro-CNN Multi-branch Router.
 
-    config AI_ENABLE_TIMESNET
-        bool "Enable TimesNet"
+    config AI_ENABLE_1D_CNN_R
+        bool "Enable 1D CNN Router"
         default y
-        select TFL_USE_RFFT
-        select TFL_USE_IRFFT
         select TFL_USE_CONV_2D
+        select TFL_USE_MAX_POOL_2D
         select TFL_USE_FULLY_CONNECTED
-        select TFL_USE_ADD
-        select TFL_USE_MUL
-        select TFL_USE_RESHAPE
-        select TFL_USE_TRANSPOSE
-        select TFL_USE_SOFTMAX
-        help
-            Enables operator registration for TimesNet model.
-
-    config AI_ENABLE_VA
-        bool "Enable Variational Autoencoder (VA)"
-        default y
-        select TFL_USE_FULLY_CONNECTED
-        select TFL_USE_ADD
-        select TFL_USE_SUB
-        select TFL_USE_MUL
-        select TFL_USE_LOGISTIC
         select TFL_USE_RELU
+        select TFL_USE_SOFTMAX
+        select TFL_USE_RESHAPE
         help
-            Enables operator registration for Variational Autoencoder (VA) model.
+            Enables operator registration for 1D CNN Router.
+
+    config AI_ENABLE_LSTM_MEM
+        bool "Enable LSTM Memory Backbone"
+        default y
+        select TFL_USE_UNIDIRECTIONAL_SEQUENCE_LSTM
+        select TFL_USE_FULLY_CONNECTED
+        select TFL_USE_TANH
+        select TFL_USE_LOGISTIC
+        select TFL_USE_ADD
+        select TFL_USE_MUL
+        help
+            Enables operator registration for LSTM Memory Backbone.
 
     # Hidden granular operator configs
     config TFL_USE_ABS
