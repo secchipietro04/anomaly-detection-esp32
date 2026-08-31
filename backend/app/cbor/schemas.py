@@ -108,10 +108,6 @@ ArchTagClstm = Literal[4]
 
 ArchTagDa = Literal[5]
 
-ArchTagFits = Literal[6]
-
-ArchTagTn = Literal[7]
-
 ArchTagDenseR = Literal[10]
 
 ArchTagStftMcnn = Literal[12]
@@ -120,7 +116,7 @@ ArchTag1dCnnR = Literal[13]
 
 ArchTagLstmMem = Literal[20]
 
-ArchitectureTag = Union[ArchTagVa, ArchTagCa1D, ArchTagCa2D, ArchTagClstm, ArchTagDa, ArchTagFits, ArchTagTn, ArchTagDenseR, ArchTagStftMcnn, ArchTag1dCnnR, ArchTagLstmMem, int]
+ArchitectureTag = Union[ArchTagVa, ArchTagCa1D, ArchTagCa2D, ArchTagClstm, ArchTagDa, ArchTagDenseR, ArchTagStftMcnn, ArchTag1dCnnR, ArchTagLstmMem, int]
 
 LossModeLogMse = Literal[1]
 
@@ -199,8 +195,6 @@ class ArchitectureTag(IntEnum):
     CA_2D = 3
     CLSTM = 4
     DA = 5
-    FITS = 6
-    TN = 7
     DENSE_R = 10
     STFT_MCNN = 12
     ONE_D_CNN_R = 13
