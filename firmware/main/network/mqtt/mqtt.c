@@ -28,38 +28,68 @@ static bool is_connected_impl(const mqtt_wrapper_t *self) {
     return impl->is_connected;
 }
 
+static bool mqtt_topic_match(const char *pattern, const char *topic, size_t topic_len) {
+    char topic_null[128];
+    if (topic_len >= sizeof(topic_null)) return false;
+    memcpy(topic_null, topic, topic_len);
+    topic_null[topic_len] = '\0';
+
+    const char *p = pattern;
+    const char *t = topic_null;
+
+    while (*p && *t) {
+        if (*p == '+') {
+            p++;
+            while (*t && *t != '/') t++;
+        } else if (*p == '#') {
+            return true;
+        } else if (*p == *t) {
+            p++;
+            t++;
+        } else {
+            return false;
+        }
+    }
+    if (*p == '+') p++;
+    if (*p == '#') return true;
+    return (*p == '\0' && *t == '\0');
+}
+
 static int subscribe_impl(mqtt_wrapper_t *self, const char *topic, int qos, mqtt_topic_cb_t cb, void *user_ctx) {
-    if (!self) return -1;
+    if (!self || !topic) return -1;
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)self;
 
-    if (!impl->is_connected || !impl->client || impl->route_count >= MAX_TOPIC_ROUTES) {
+    if (impl->route_count >= MAX_TOPIC_ROUTES) {
+        ESP_LOGE(TAG, "Max MQTT routes (%d) exceeded", MAX_TOPIC_ROUTES);
         return -1;
     }
 
+    int route_idx = -1;
     for (int i = 0; i < impl->route_count; i++) {
         if (strcmp(impl->routes[i].topic, topic) == 0) {
-            impl->routes[i].callback = cb;
-            impl->routes[i].user_ctx = user_ctx;
-            return esp_mqtt_client_subscribe(impl->client, topic, qos);
+            route_idx = i;
+            break;
         }
     }
 
-    strncpy(impl->routes[impl->route_count].topic, topic, sizeof(impl->routes[impl->route_count].topic) - 1);
-    impl->routes[impl->route_count].topic[sizeof(impl->routes[impl->route_count].topic) - 1] = '\0';
-    impl->routes[impl->route_count].callback = cb;
-    impl->routes[impl->route_count].user_ctx = user_ctx;
-    impl->route_count++;
+    if (route_idx == -1) {
+        route_idx = impl->route_count++;
+        strncpy(impl->routes[route_idx].topic, topic, sizeof(impl->routes[route_idx].topic) - 1);
+        impl->routes[route_idx].topic[sizeof(impl->routes[route_idx].topic) - 1] = '\0';
+    }
 
-    return esp_mqtt_client_subscribe(impl->client, topic, qos);
+    impl->routes[route_idx].callback = cb;
+    impl->routes[route_idx].user_ctx = user_ctx;
+
+    if (impl->is_connected && impl->client) {
+        return esp_mqtt_client_subscribe(impl->client, topic, qos);
+    }
+    return 0;
 }
 
 static int unsubscribe_impl(mqtt_wrapper_t *self, const char *topic) {
-    if (!self) return -1;
+    if (!self || !topic) return -1;
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)self;
-
-    if (!impl->is_connected || !impl->client) {
-        return -1;
-    }
 
     int found_index = -1;
     for (int i = 0; i < impl->route_count; i++) {
@@ -76,11 +106,14 @@ static int unsubscribe_impl(mqtt_wrapper_t *self, const char *topic) {
         impl->route_count--;
     }
 
-    return esp_mqtt_client_unsubscribe(impl->client, topic);
+    if (impl->is_connected && impl->client) {
+        return esp_mqtt_client_unsubscribe(impl->client, topic);
+    }
+    return 0;
 }
 
 static int publish_impl(mqtt_wrapper_t *self, const char *topic, const uint8_t *data, size_t len, int qos, int retain) {
-    if (!self) return -1;
+    if (!self || !topic) return -1;
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)self;
 
     if (!impl->is_connected || !impl->client) {
@@ -105,12 +138,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)handler_args;
     if (!impl) return;
 
-    esp_mqtt_event_handle_t event = event_data;
+    esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             impl->is_connected = true;
-            ESP_LOGI(TAG, "MQTT Connected");
+            ESP_LOGI(TAG, "MQTT Connected. Subscribing to %d registered topics...", impl->route_count);
+            for (int i = 0; i < impl->route_count; i++) {
+                esp_mqtt_client_subscribe(impl->client, impl->routes[i].topic, 1);
+            }
             break;
 
         case MQTT_EVENT_DISCONNECTED:
@@ -120,9 +156,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
         case MQTT_EVENT_DATA:
             for (int i = 0; i < impl->route_count; i++) {
-                if (strlen(impl->routes[i].topic) == event->topic_len &&
-                    strncmp(impl->routes[i].topic, event->topic, event->topic_len) == 0) {
-                    
+                if (mqtt_topic_match(impl->routes[i].topic, event->topic, event->topic_len)) {
                     if (impl->routes[i].callback) {
                         impl->routes[i].callback(
                             (const uint8_t *)event->data,
@@ -156,7 +190,6 @@ mqtt_wrapper_t* mqtt_wrapper_create(const mqtt_wrapper_config_t *config) {
         return NULL;
     }
 
-    // Bind functions to struct pointers
     impl->interface.is_connected = is_connected_impl;
     impl->interface.subscribe    = subscribe_impl;
     impl->interface.unsubscribe  = unsubscribe_impl;
@@ -170,8 +203,6 @@ mqtt_wrapper_t* mqtt_wrapper_create(const mqtt_wrapper_config_t *config) {
     if (config->client_id) {
         mqtt_cfg.credentials.client_id = config->client_id;
     }
-
-    
 
     impl->client = esp_mqtt_client_init(&mqtt_cfg);
     if (!impl->client) {

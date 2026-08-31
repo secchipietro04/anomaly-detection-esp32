@@ -24,39 +24,50 @@ extern model_ensemble_t ensemble;
 void publish_capabilities(void) {
     if (!local_mqtt || !local_mqtt->is_connected(local_mqtt)) return;
     
-    struct NodeCapabilities caps;
-    memset(&caps, 0, sizeof(caps));
-    
-    caps.NodeCapabilities_accel_freqs_float_count = 0;
-    for (size_t i = 0; i < ISM330BX_ACCEL_FREQS_COUNT; i++) {
-        caps.NodeCapabilities_accel_freqs_float[caps.NodeCapabilities_accel_freqs_float_count++] = ISM330BX_ACCEL_FREQS[i];
+    struct NodeCapabilities *caps = (struct NodeCapabilities *)calloc(1, sizeof(struct NodeCapabilities));
+    uint8_t *buf = (uint8_t *)malloc(2048);
+    if (!caps || !buf) {
+        ESP_LOGE(TAG, "Failed to allocate memory for capabilities telemetry");
+        free(caps);
+        free(buf);
+        return;
     }
     
-    caps.NodeCapabilities_gyro_freqs_float_count = 0;
+    caps->NodeCapabilities_accel_freqs_float_count = 0;
+    for (size_t i = 0; i < ISM330BX_ACCEL_FREQS_COUNT; i++) {
+        caps->NodeCapabilities_accel_freqs_float[caps->NodeCapabilities_accel_freqs_float_count++] = ISM330BX_ACCEL_FREQS[i];
+    }
+    
+    caps->NodeCapabilities_gyro_freqs_float_count = 0;
     for (size_t i = 0; i < ISM330BX_GYRO_FREQS_COUNT; i++) {
-        caps.NodeCapabilities_gyro_freqs_float[caps.NodeCapabilities_gyro_freqs_float_count++] = ISM330BX_GYRO_FREQS[i];
+        caps->NodeCapabilities_gyro_freqs_float[caps->NodeCapabilities_gyro_freqs_float_count++] = ISM330BX_GYRO_FREQS[i];
     }
     
     // fetch registered tflite custom ops dynamically from wrapper exports
     size_t count = 0;
     const char** ops = tflite_micro_get_enabled_ops(&count);
     
-    const size_t max_ops_capacity = sizeof(caps.NodeCapabilities_enabled_ops_tstr) / sizeof(caps.NodeCapabilities_enabled_ops_tstr[0]);
-    caps.NodeCapabilities_enabled_ops_tstr_count = 0;
-    for (size_t i = 0; i < count && caps.NodeCapabilities_enabled_ops_tstr_count < max_ops_capacity; i++) {
-        size_t idx = caps.NodeCapabilities_enabled_ops_tstr_count++;
-        caps.NodeCapabilities_enabled_ops_tstr[idx].value = (const uint8_t *)ops[i];
-        caps.NodeCapabilities_enabled_ops_tstr[idx].len = strlen(ops[i]);
+    const size_t max_ops_capacity = sizeof(caps->NodeCapabilities_enabled_ops_tstr) / sizeof(caps->NodeCapabilities_enabled_ops_tstr[0]);
+    caps->NodeCapabilities_enabled_ops_tstr_count = 0;
+    for (size_t i = 0; i < count && caps->NodeCapabilities_enabled_ops_tstr_count < max_ops_capacity; i++) {
+        size_t idx = caps->NodeCapabilities_enabled_ops_tstr_count++;
+        caps->NodeCapabilities_enabled_ops_tstr[idx].value = (const uint8_t *)ops[i];
+        caps->NodeCapabilities_enabled_ops_tstr[idx].len = strlen(ops[i]);
     }
     
-    uint8_t buf[2048];
     size_t len = 0;
-    if (cbor_encode_NodeCapabilities(buf, sizeof(buf), &caps, &len)) {
+    int caps_res = cbor_encode_NodeCapabilities(buf, 2048, caps, &len);
+    if (caps_res == 0 && len > 0) {
         char topic[128];
         snprintf(topic, sizeof(topic), "v1/%s/info/caps", global_node_id);
         local_mqtt->publish(local_mqtt, topic, buf, len, 1, 1);
         ESP_LOGI(TAG, "published capabilities telemetry once (ops count: %zu)", count);
+    } else {
+        ESP_LOGE(TAG, "failed to encode capabilities cbor (res: %d)", caps_res);
     }
+
+    free(caps);
+    free(buf);
 }
 
 void publish_health_info(void) {
@@ -78,7 +89,7 @@ void publish_health_info(void) {
     // cache_uint holds active model ids (router + memory + submodels) in health cbor telemetry
     const size_t max_cache_capacity = sizeof(health.NodeHealthInfo_cache_uint) / sizeof(health.NodeHealthInfo_cache_uint[0]);
     
-    // count cached models and store in the static telemetry array
+    // count cached models and store in the telemetry array
     health.NodeHealthInfo_cache_uint_count = 0;
     if (ensemble.router_model_loaded && health.NodeHealthInfo_cache_uint_count < max_cache_capacity) {
         health.NodeHealthInfo_cache_uint[health.NodeHealthInfo_cache_uint_count++] = ensemble.router_model.config.model_id;
@@ -88,6 +99,11 @@ void publish_health_info(void) {
     }
     for (uint32_t i = 0; i < ensemble.submodel_cache.count && health.NodeHealthInfo_cache_uint_count < max_cache_capacity; i++) {
         health.NodeHealthInfo_cache_uint[health.NodeHealthInfo_cache_uint_count++] = ensemble.submodel_cache.items[i].model.config.model_id;
+    }
+    // zcbor min-qty is 1, so provide 0 if empty
+    if (health.NodeHealthInfo_cache_uint_count == 0) {
+        health.NodeHealthInfo_cache_uint[0] = 0;
+        health.NodeHealthInfo_cache_uint_count = 1;
     }
     
     extern uint32_t global_last_segment_id;
@@ -103,6 +119,9 @@ void publish_health_info(void) {
         health.NodeHealthInfo_status.NodeHealthInfo_status.len = strlen("idle");
     }
     
+    // caps is published separately on v1/{id}/info/caps
+    health.NodeHealthInfo_caps_present = false;
+
     if (global_dump_time_ms > 0) {
         health.NodeHealthInfo_dump_t.NodeHealthInfo_dump_t = global_dump_time_ms;
         health.NodeHealthInfo_dump_t_present = true;
@@ -116,11 +135,14 @@ void publish_health_info(void) {
     
     uint8_t buf[512];
     size_t len = 0;
-    if (cbor_encode_NodeHealthInfo(buf, sizeof(buf), &health, &len)) {
+    int enc_res = cbor_encode_NodeHealthInfo(buf, sizeof(buf), &health, &len);
+    if (enc_res == 0 && len > 0) {
         char topic[128];
         snprintf(topic, sizeof(topic), "v1/%s/info/health", global_node_id);
         local_mqtt->publish(local_mqtt, topic, buf, len, 1, 0);
-        ESP_LOGI(TAG, "published health telemetry");
+        ESP_LOGI(TAG, "published health telemetry (%zu bytes)", len);
+    } else {
+        ESP_LOGE(TAG, "failed to encode NodeHealthInfo cbor (res: %d)", enc_res);
     }
 }
 
@@ -152,7 +174,8 @@ static void cmd_updt_status_cb(const uint8_t *data, size_t len, void *user_ctx) 
 static void config_cb(const uint8_t *data, size_t len, void *user_ctx) {
     struct RuntimeConfig config;
     size_t decoded = 0;
-    if (cbor_decode_RuntimeConfig(data, len, &config, &decoded)) {
+    int res = cbor_decode_RuntimeConfig(data, len, &config, &decoded);
+    if (res == 0) {
         ESP_LOGI(TAG, "applied config. rate: %f, mode: %u", 
                  config.RuntimeConfig_rate, 
                  (unsigned int)config.RuntimeConfig_mode.StreamMode_choice);
@@ -167,6 +190,8 @@ static void config_cb(const uint8_t *data, size_t len, void *user_ctx) {
         if (config.RuntimeConfig_rate != global_sample_rate) {
             harvester_update_rate(config.RuntimeConfig_rate);
         }
+    } else {
+        ESP_LOGE(TAG, "failed to decode RuntimeConfig CBOR payload (res: %d, len: %zu)", res, len);
     }
 }
 
@@ -174,7 +199,8 @@ static void ensemble_cb(const uint8_t *data, size_t len, void *user_ctx) {
     // payload_r is the top level union that can be a model pkg or ensemble config
     struct Payload_r payload;
     size_t decoded = 0;
-    if (cbor_decode_Payload(data, len, &payload, &decoded)) {
+    int res = cbor_decode_Payload(data, len, &payload, &decoded);
+    if (res == 0) {
         // user sent an ensemble config update (routing table + warmups)
         if (payload.Payload_choice == Payload_EnsembleConfig_m_c) {
             struct EnsembleConfig *cfg = &payload.Payload_EnsembleConfig_m;

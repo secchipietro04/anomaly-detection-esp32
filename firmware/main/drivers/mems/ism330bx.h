@@ -11,16 +11,25 @@
 extern "C" {
 #endif
 
-// register addresses
+// register addresses from DS14588 Table 24
 typedef enum {
+  ISM330BX_REG_FIFO_CTRL1 = 0x07,
+  ISM330BX_REG_FIFO_CTRL2 = 0x08,
   ISM330BX_REG_FIFO_CTRL3 = 0x09,
   ISM330BX_REG_FIFO_CTRL4 = 0x0A,
   ISM330BX_REG_WHO_AM_I = 0x0F,
   ISM330BX_REG_CTRL1_XL = 0x10,
   ISM330BX_REG_CTRL2_G = 0x11,
-  ISM330BX_REG_OUT_TEMP_L = 0x1D,
-  ISM330BX_REG_FIFO_STATUS1 = 0x3A,
-  ISM330BX_REG_FIFO_STATUS2 = 0x3B,
+  ISM330BX_REG_CTRL3_C = 0x12,
+  ISM330BX_REG_CTRL4 = 0x13,
+  ISM330BX_REG_CTRL6_G = 0x15,
+  ISM330BX_REG_CTRL8_XL = 0x17,
+  ISM330BX_REG_FIFO_STATUS1 = 0x1B,
+  ISM330BX_REG_FIFO_STATUS2 = 0x1C,
+  ISM330BX_REG_STATUS_REG = 0x1E,
+  ISM330BX_REG_OUT_TEMP_L = 0x20,
+  ISM330BX_REG_OUTX_L_G = 0x22,
+  ISM330BX_REG_OUTX_L_A = 0x28,
   ISM330BX_REG_FIFO_DATA_TAG = 0x78,
 } ism330bx_reg_t;
 
@@ -33,7 +42,7 @@ typedef enum {
 #define ISM330BX_STAT_GDA (1 << 1)  // bit 1: gyroscope data available
 #define ISM330BX_STAT_TDA (1 << 2)  // bit 2: temperature data available
 
-// fifo_status2 bitmasks (register 0x3B)
+// fifo_status2 bitmasks (register 0x1C)
 #define ISM330BX_FIFO_STAT2_DIFF_MASK 0x03 // bits 0-1: high bits for fifo sample count
 #define ISM330BX_FIFO_STAT2_WTM (1 << 5)   // bit 5: fifo watermark reached
 #define ISM330BX_FIFO_STAT2_OVR (1 << 6)   // bit 6: fifo overrun (data loss)
@@ -44,8 +53,7 @@ typedef enum {
 #define ISM330BX_FIFO_TAG_SHIFT 3
 #define ISM330BX_FIFO_TAG_MASK 0x1F
 
-// configuration enums
-
+// ODR codes from Table 50 & 53 (bits [3:0])
 typedef enum {
   ISM330BX_ODR_OFF = 0x00,
   ISM330BX_ODR_1u875Hz = 0x01,
@@ -59,14 +67,13 @@ typedef enum {
   ISM330BX_ODR_960Hz = 0x09,
   ISM330BX_ODR_1920Hz = 0x0A,
   ISM330BX_ODR_3840Hz = 0x0B,
-  ISM330BX_ODR_7680Hz = 0x0C,
 } ism330bx_odr_t;
 
 typedef enum {
   ISM330BX_ACCEL_FS_2G = 0x00,
-  ISM330BX_ACCEL_FS_4G = 0x02,
-  ISM330BX_ACCEL_FS_8G = 0x03,
-  ISM330BX_ACCEL_FS_16G = 0x01,
+  ISM330BX_ACCEL_FS_4G = 0x01,
+  ISM330BX_ACCEL_FS_8G = 0x02,
+  ISM330BX_ACCEL_FS_16G = 0x03,
 } ism330bx_accel_fs_t;
 
 typedef enum {
@@ -79,10 +86,8 @@ typedef enum {
 typedef enum {
   ISM330BX_FIFO_BYPASS = 0x00,
   ISM330BX_FIFO_MODE = 0x01,
-  ISM330BX_FIFO_STREAM = 0x06, // continuous overwrite mode
+  ISM330BX_FIFO_STREAM = 0x06,
 } ism330bx_fifo_mode_t;
-
-// hardware spi configuration struct
 
 typedef struct {
   spi_host_device_t host_id;
@@ -93,67 +98,49 @@ typedef struct {
   int clock_speed_hz;
 } ism330bx_hw_config_t;
 
-// sensor register configuration struct
-
 typedef struct {
   ism330bx_odr_t accel_odr;
   ism330bx_accel_fs_t accel_fs;
   ism330bx_odr_t gyro_odr;
   ism330bx_gyro_fs_t gyro_fs;
   ism330bx_fifo_mode_t fifo_mode;
-  uint8_t fifo_bdr_xl; // batch data rate for accel: 0x07 = 960hz
-  uint8_t fifo_bdr_gy; // batch data rate for gyro: 0x08 = 1920hz
+  uint8_t fifo_bdr_xl;
+  uint8_t fifo_bdr_gy;
 } ism330bx_config_t;
-
-/**
- * @brief unified master initialization config
- */
 
 typedef struct {
   ism330bx_hw_config_t hw;
   ism330bx_config_t sensor;
 } ism330bx_init_config_t;
 
-/**
- * @brief master default configuration with standard spi2 gpios and high-rate
- * fifo streaming
- */
 #define ISM330BX_DEFAULT_INIT_CONFIG()               \
   {                                                  \
     .hw =                                            \
         {                                            \
-            .host_id = SPI2_HOST,                    \
-            .mosi_pin = 23,                          \
-            .miso_pin = 19,                          \
-            .sclk_pin = 18,                          \
-            .cs_pin = 5,                             \
+            .host_id = SPI3_HOST,                    \
+            .mosi_pin = 9,                           \
+            .miso_pin = 11,                          \
+            .sclk_pin = 10,                          \
+            .cs_pin = 12,                            \
             .clock_speed_hz = 10000000, /* 10 MHz */ \
         },                                           \
     .sensor = {                                      \
-      .accel_odr = ISM330BX_ODR_960Hz,               \
+      .accel_odr = ISM330BX_ODR_3840Hz,              \
       .accel_fs = ISM330BX_ACCEL_FS_4G,              \
-      .gyro_odr = ISM330BX_ODR_1920Hz,               \
+      .gyro_odr = ISM330BX_ODR_3840Hz,               \
       .gyro_fs = ISM330BX_GYRO_FS_2000DPS,           \
       .fifo_mode = ISM330BX_FIFO_STREAM,             \
-      .fifo_bdr_xl = ISM330BX_ODR_960Hz,             \
-      .fifo_bdr_gy = ISM330BX_ODR_1920Hz,            \
+      .fifo_bdr_xl = ISM330BX_ODR_3840Hz,            \
+      .fifo_bdr_gy = ISM330BX_ODR_3840Hz,            \
     }                                                \
   }
-
-// data containers
-
-typedef struct {
-  int16_t x;
-  int16_t y;
-  int16_t z;
-} ism330bx_axis3_t;
 
 typedef struct {
   int16_t *accel_x;
   int16_t *accel_y;
   int16_t *accel_z;
-  size_t accel_data_size; // input buffer size
-  size_t accel_count;     // number of samples read
+  size_t accel_data_size;
+  size_t accel_count;
 
   int16_t *gyro_x;
   int16_t *gyro_y;
@@ -164,34 +151,24 @@ typedef struct {
   float temp_celsius;
 } ism330bx_fifo_result_t;
 
-typedef struct ism330bx_spi_dev_t ism330bx_spi_dev_t;
+typedef struct ism330bx_spi_dev_s ism330bx_spi_dev_t;
 
-struct ism330bx_spi_dev_t {
+struct ism330bx_spi_dev_s {
   spi_device_handle_t spi_handle;
   spi_host_device_t host_id;
-  ism330bx_config_t config;
   bool bus_initialized_by_driver;
+  ism330bx_config_t config;
 
-  // object methods
-  esp_err_t (*read_reg)(ism330bx_spi_dev_t *dev, uint8_t reg_addr,
-                        uint8_t *data, size_t len);
-  esp_err_t (*write_reg)(ism330bx_spi_dev_t *dev, uint8_t reg_addr,
-                         const uint8_t *data, size_t len);
-  esp_err_t (*read_temp)(ism330bx_spi_dev_t *dev, float *temp_c);
-  esp_err_t (*fetch_fifo_buffer)(ism330bx_spi_dev_t *dev,
-                                 ism330bx_fifo_result_t *result_buffer);
-  esp_err_t (*apply_config)(ism330bx_spi_dev_t *dev,
-                            const ism330bx_config_t *cfg);
   esp_err_t (*init)(ism330bx_spi_dev_t *dev);
+  esp_err_t (*apply_config)(ism330bx_spi_dev_t *dev, const ism330bx_config_t *cfg);
+  esp_err_t (*fetch_fifo_buffer)(ism330bx_spi_dev_t *dev, ism330bx_fifo_result_t *result);
+  esp_err_t (*read_temp)(ism330bx_spi_dev_t *dev, float *temp_c);
+  esp_err_t (*read_temp_raw)(ism330bx_spi_dev_t *dev, uint16_t *temp_raw_pos);
+  esp_err_t (*read_reg)(ism330bx_spi_dev_t *dev, uint8_t reg_addr, uint8_t *data, size_t len);
+  esp_err_t (*write_reg)(ism330bx_spi_dev_t *dev, uint8_t reg_addr, const uint8_t *data, size_t len);
 };
 
-/**
- * @brief initializes spi bus, adds spi device, verifies chip id, and applies
- * config. pass null for init_cfg to use default configuration values.
- */
-esp_err_t ism330bx_spi_create(ism330bx_spi_dev_t *dev,
-                              const ism330bx_init_config_t *init_cfg);
-esp_err_t ism330bx_spi_destroy(ism330bx_spi_dev_t *dev);
+esp_err_t ism330bx_spi_create(ism330bx_spi_dev_t *dev, const ism330bx_init_config_t *init_cfg);
 
 extern const float ISM330BX_ACCEL_FREQS[];
 extern const size_t ISM330BX_ACCEL_FREQS_COUNT;

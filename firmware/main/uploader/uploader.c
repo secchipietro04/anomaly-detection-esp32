@@ -20,47 +20,46 @@ extern uint32_t global_cadence;
 
 static bool serialize_and_publish_segment(buffer_slot_t *slot, int32_t reason) {
     size_t max_cbor_len = 16 * 1024;
-    uint8_t *buf = malloc(max_cbor_len);
-    if (!buf) {
-        ESP_LOGE(TAG, "failed to alloc cbor segment buffer");
+    uint8_t *buf = (uint8_t *)malloc(max_cbor_len);
+    struct Segment *seg = (struct Segment *)malloc(sizeof(struct Segment));
+    if (!buf || !seg) {
+        ESP_LOGE(TAG, "failed to alloc cbor segment buffers");
+        if (buf) free(buf);
+        if (seg) free(seg);
         return false;
     }
     
-    struct Segment seg;
     bool overall_ok = true;
-    
     uint32_t num_chunks = SAMPLES_PER_SEGMENT / TELEMETRY_CHUNK_SIZE;
     
     for (uint32_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
-        memset(&seg, 0, sizeof(struct Segment));
+        memset(seg, 0, sizeof(struct Segment));
         
-        seg.Segment_id = slot->segment_id;
-        seg.Segment_rate = slot->sample_rate;
-        seg.Segment_reason.EmitReason_choice = reason;
+        seg->Segment_id = slot->segment_id;
+        seg->Segment_rate = slot->sample_rate;
+        seg->Segment_reason.EmitReason_choice = reason;
+        seg->Segment_chunk = chunk_idx + 1;
         
-        // Add chunk ID (1-based index)
-        seg.Segment_chunk = chunk_idx + 1;
+        seg->data_gyro.Datapoints_x_float32_count = TELEMETRY_CHUNK_SIZE;
+        seg->data_gyro.Datapoints_y_float32_count = TELEMETRY_CHUNK_SIZE;
+        seg->data_gyro.Datapoints_z_float32_count = TELEMETRY_CHUNK_SIZE;
         
-        // Populate points for this chunk dynamically
-        seg.data_gyro.Datapoints_x_float32_count = TELEMETRY_CHUNK_SIZE;
-        seg.data_gyro.Datapoints_y_float32_count = TELEMETRY_CHUNK_SIZE;
-        seg.data_gyro.Datapoints_z_float32_count = TELEMETRY_CHUNK_SIZE;
-        
-        seg.data_accel.Datapoints_x_float32_count = TELEMETRY_CHUNK_SIZE;
-        seg.data_accel.Datapoints_y_float32_count = TELEMETRY_CHUNK_SIZE;
-        seg.data_accel.Datapoints_z_float32_count = TELEMETRY_CHUNK_SIZE;
+        seg->data_accel.Datapoints_x_float32_count = TELEMETRY_CHUNK_SIZE;
+        seg->data_accel.Datapoints_y_float32_count = TELEMETRY_CHUNK_SIZE;
+        seg->data_accel.Datapoints_z_float32_count = TELEMETRY_CHUNK_SIZE;
         
         uint32_t start_offset = chunk_idx * TELEMETRY_CHUNK_SIZE;
-        memcpy(seg.data_accel.Datapoints_x_float32, &slot->data.accel_x[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
-        memcpy(seg.data_accel.Datapoints_y_float32, &slot->data.accel_y[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
-        memcpy(seg.data_accel.Datapoints_z_float32, &slot->data.accel_z[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_accel.Datapoints_x_float32, &slot->data.accel_x[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_accel.Datapoints_y_float32, &slot->data.accel_y[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_accel.Datapoints_z_float32, &slot->data.accel_z[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
         
-        memcpy(seg.data_gyro.Datapoints_x_float32, &slot->data.gyro_x[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
-        memcpy(seg.data_gyro.Datapoints_y_float32, &slot->data.gyro_y[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
-        memcpy(seg.data_gyro.Datapoints_z_float32, &slot->data.gyro_z[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_gyro.Datapoints_x_float32, &slot->data.gyro_x[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_gyro.Datapoints_y_float32, &slot->data.gyro_y[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
+        memcpy(seg->data_gyro.Datapoints_z_float32, &slot->data.gyro_z[start_offset], TELEMETRY_CHUNK_SIZE * sizeof(float));
         
         size_t encoded_len = 0;
-        bool ok = cbor_encode_Segment(buf, max_cbor_len, &seg, &encoded_len);
+        int enc_res = cbor_encode_Segment(buf, max_cbor_len, seg, &encoded_len);
+        bool ok = (enc_res == 0 && encoded_len > 0);
         if (ok && global_mqtt_client && global_mqtt_client->is_connected(global_mqtt_client)) {
             char topic[128];
             snprintf(topic, sizeof(topic), "v1/%s/data/sensor", global_node_id);
@@ -74,10 +73,8 @@ static bool serialize_and_publish_segment(buffer_slot_t *slot, int32_t reason) {
                     msg_id = global_mqtt_client->publish(global_mqtt_client, topic, buf, encoded_len, 1, 0);
                     retries--;
                 }
-
             }
             
-            //this msg_id is different, gets updated above
             if (msg_id >= 0) {
                 ESP_LOGI(TAG, "published segment %u chunk %u/%u (%zu bytes)", 
                          (unsigned int)slot->segment_id, (unsigned int)(chunk_idx + 1), (unsigned int)num_chunks, encoded_len);
@@ -87,37 +84,39 @@ static bool serialize_and_publish_segment(buffer_slot_t *slot, int32_t reason) {
                 overall_ok = false;
             }
         } else {
-            ESP_LOGE(TAG, "failed to encode segment %u chunk %u/%u", 
-                     (unsigned int)slot->segment_id, (unsigned int)(chunk_idx + 1), (unsigned int)num_chunks);
+            ESP_LOGE(TAG, "failed to encode segment %u chunk %u/%u (res: %d)", 
+                     (unsigned int)slot->segment_id, (unsigned int)(chunk_idx + 1), (unsigned int)num_chunks, enc_res);
             overall_ok = false;
         }
         
-        // Brief yield between publishing chunks to avoid choking the MQTT transport layer
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
     
+    free(seg);
     free(buf);
     return overall_ok;
 }
 
 static bool serialize_and_publish_inference(buffer_slot_t *slot, int32_t reason) {
-    struct InferencePacket pkt;
-    memset(&pkt, 0, sizeof(struct InferencePacket));
+    struct InferencePacket *pkt = (struct InferencePacket *)malloc(sizeof(struct InferencePacket));
+    if (!pkt) return false;
+    memset(pkt, 0, sizeof(struct InferencePacket));
     
-    pkt.InferencePacket_id = slot->segment_id;
-    pkt.InferencePacket_reason.EmitReason_choice = reason;
-    pkt.InferencePacket_r_m_id = slot->router_model_id;
-    pkt.InferencePacket_ae_id = slot->active_submodel_id;
-    pkt.InferencePacket_mse = slot->anomaly_score;
-    pkt.InferencePacket_anom = slot->is_anomaly;
+    pkt->InferencePacket_id = slot->segment_id;
+    pkt->InferencePacket_reason.EmitReason_choice = reason;
+    pkt->InferencePacket_r_m_id = slot->router_model_id;
+    pkt->InferencePacket_ae_id = slot->active_submodel_id;
+    pkt->InferencePacket_mse = slot->anomaly_score;
+    pkt->InferencePacket_anom = slot->is_anomaly;
 #if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
-    pkt.InferencePacket_time_present = true;
-    pkt.InferencePacket_time.InferencePacket_time = slot->inference_time_ms;
+    pkt->InferencePacket_time_present = true;
+    pkt->InferencePacket_time.InferencePacket_time = slot->inference_time_ms;
 #endif
     
     uint8_t buf[256];
     size_t encoded_len = 0;
-    bool ok = cbor_encode_InferencePacket(buf, sizeof(buf), &pkt, &encoded_len);
+    int enc_res = cbor_encode_InferencePacket(buf, sizeof(buf), pkt, &encoded_len);
+    bool ok = (enc_res == 0 && encoded_len > 0);
     if (ok && global_mqtt_client && global_mqtt_client->is_connected(global_mqtt_client)) {
         char topic[128];
         snprintf(topic, sizeof(topic), "v1/%s/inference", global_node_id);
@@ -140,10 +139,11 @@ static bool serialize_and_publish_inference(buffer_slot_t *slot, int32_t reason)
             ok = false;
         }
     } else {
-        ESP_LOGE(TAG, "failed to encode inference packet");
+        ESP_LOGE(TAG, "failed to encode inference packet (res: %d)", enc_res);
         ok = false;
     }
     
+    free(pkt);
     return ok;
 }
 
@@ -220,8 +220,6 @@ static void uploader_task(void *pvParameters) {
             
             quad_buffer_lock(slot);
             slot->flags &= ~BUF_FLAG_READY_SEND;
-            bool is_rep = slot->is_replay;
-            slot->is_replay = false;
             bool is_free = (slot->flags & (BUF_FLAG_READY_INF | BUF_FLAG_READY_SEND | BUF_FLAG_PENDING_SD)) == 0;
             quad_buffer_unlock(slot);
             
@@ -237,7 +235,7 @@ void uploader_start(quad_buffer_t *qb) {
     xTaskCreatePinnedToCore(
         uploader_task,
         "uploader",
-        8192,
+        16384,
         qb,
         3,
         &uploader_task_handle,

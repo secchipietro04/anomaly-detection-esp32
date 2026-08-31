@@ -21,15 +21,12 @@ static uint32_t segment_id_counter = 1;
 static ism330bx_config_t current_sensor_cfg;
 
 void harvester_update_rate(float rate_hz) {
-    // change the rate in runtime config
     global_sample_rate = rate_hz;
-    
-    current_sensor_cfg.accel_odr = ISM330BX_ODR_3840Hz; // Always max out physical ODR
-    current_sensor_cfg.gyro_odr = ISM330BX_ODR_3840Hz;  // Always max out physical ODR
+    current_sensor_cfg.accel_odr = ISM330BX_ODR_3840Hz;
+    current_sensor_cfg.gyro_odr = ISM330BX_ODR_3840Hz;
     current_sensor_cfg.fifo_bdr_xl = ism330bx_hz_to_odr(rate_hz);
     current_sensor_cfg.fifo_bdr_gy = ism330bx_hz_to_odr(rate_hz);
     
-    // apply to driver
     esp_err_t err = dev.apply_config(&dev, &current_sensor_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "failed to apply new ODR config: %d", err);
@@ -41,15 +38,12 @@ void harvester_update_rate(float rate_hz) {
 static void harvester_task(void *pvParameters) {
     quad_buffer_t *qb = (quad_buffer_t *)pvParameters;
     
-    // setup default init configuration
     ism330bx_init_config_t init_cfg = ISM330BX_DEFAULT_INIT_CONFIG();
+    init_cfg.sensor.accel_odr = ISM330BX_ODR_3840Hz;
+    init_cfg.sensor.gyro_odr = ISM330BX_ODR_3840Hz;
+    init_cfg.sensor.fifo_bdr_xl = ism330bx_hz_to_odr(global_sample_rate);
+    init_cfg.sensor.fifo_bdr_gy = ism330bx_hz_to_odr(global_sample_rate);
     current_sensor_cfg = init_cfg.sensor;
-    
-    // force initial rate from globals
-    current_sensor_cfg.accel_odr = ISM330BX_ODR_3840Hz;
-    current_sensor_cfg.gyro_odr = ISM330BX_ODR_3840Hz;
-    current_sensor_cfg.fifo_bdr_xl = ism330bx_hz_to_odr(global_sample_rate);
-    current_sensor_cfg.fifo_bdr_gy = ism330bx_hz_to_odr(global_sample_rate);
     
     ESP_LOGI(TAG, "Initializing SPI sensor...");
     esp_err_t err = ism330bx_spi_create(&dev, &init_cfg);
@@ -68,7 +62,6 @@ static void harvester_task(void *pvParameters) {
     
     ESP_LOGI(TAG, "sensor up. starting harvester loop");
     
-    // allocate buffers on heap for reading the fifo tag packets
     int16_t *ax_raw = malloc(sizeof(int16_t) * 512);
     int16_t *ay_raw = malloc(sizeof(int16_t) * 512);
     int16_t *az_raw = malloc(sizeof(int16_t) * 512);
@@ -83,26 +76,24 @@ static void harvester_task(void *pvParameters) {
         return;
     }
     
-    uint32_t sample_idx = 0;
+    uint32_t loop_counter = 0;
     
     while (1) {
-        // retrieve free slot index from event queue (blocks until a slot becomes free)
         int slot_idx;
         if (xQueueReceive(free_slots_queue, &slot_idx, portMAX_DELAY) != pdTRUE) {
             continue;
         }
         buffer_slot_t *slot = &qb->slots[slot_idx];
         
-        // lock and set harvesting flag
         quad_buffer_lock(slot);
         slot->flags = BUF_FLAG_HARVESTING;
         quad_buffer_unlock(slot);
         
-        sample_idx = 0;
+        uint32_t accel_idx = 0;
+        uint32_t gyro_idx = 0;
         bool skip_id = false;
         
-        // fill current slot to 4096 samples
-        while (sample_idx < 4096) {
+        while (accel_idx < SAMPLES_PER_SEGMENT || gyro_idx < SAMPLES_PER_SEGMENT) {
             ism330bx_fifo_result_t result = {
                 .accel_x = ax_raw,
                 .accel_y = ay_raw,
@@ -114,51 +105,52 @@ static void harvester_task(void *pvParameters) {
                 .gyro_data_size = 512
             };
             
-            // fetch what is available in fifo
             err = dev.fetch_fifo_buffer(&dev, &result);
             if (err != ESP_OK) {
-                vTaskDelay(pdMS_TO_TICKS(2));
+                taskYIELD();
                 continue;
             }
             
-            // check overrun status
             uint8_t stat2 = 0;
             dev.read_reg(&dev, ISM330BX_REG_FIFO_STATUS2, &stat2, 1);
             if (stat2 & ISM330BX_FIFO_STAT2_OVR) {
-                // we had an overrun, skip segment ID
                 skip_id = true;
             }
             
-            size_t copy_cnt = (result.accel_count < result.gyro_count) ? result.accel_count : result.gyro_count;
-            if (sample_idx + copy_cnt > SAMPLES_PER_SEGMENT) {
-                copy_cnt = SAMPLES_PER_SEGMENT - sample_idx;
-            }
-            if (copy_cnt > 0) {
-                dsp_opt_int16_to_float(ax_raw, &slot->data.accel_x[sample_idx], copy_cnt);
-                dsp_opt_int16_to_float(ay_raw, &slot->data.accel_y[sample_idx], copy_cnt);
-                dsp_opt_int16_to_float(az_raw, &slot->data.accel_z[sample_idx], copy_cnt);
-                dsp_opt_int16_to_float(gx_raw, &slot->data.gyro_x[sample_idx], copy_cnt);
-                dsp_opt_int16_to_float(gy_raw, &slot->data.gyro_y[sample_idx], copy_cnt);
-                dsp_opt_int16_to_float(gz_raw, &slot->data.gyro_z[sample_idx], copy_cnt);
-                sample_idx += copy_cnt;
+            if (result.accel_count > 0 && accel_idx < SAMPLES_PER_SEGMENT) {
+                size_t to_copy = (accel_idx + result.accel_count > SAMPLES_PER_SEGMENT) ? (SAMPLES_PER_SEGMENT - accel_idx) : result.accel_count;
+                dsp_opt_int16_to_float(ax_raw, &slot->data.accel_x[accel_idx], to_copy);
+                dsp_opt_int16_to_float(ay_raw, &slot->data.accel_y[accel_idx], to_copy);
+                dsp_opt_int16_to_float(az_raw, &slot->data.accel_z[accel_idx], to_copy);
+                accel_idx += to_copy;
             }
             
-            vTaskDelay(pdMS_TO_TICKS(10));
+            if (result.gyro_count > 0 && gyro_idx < SAMPLES_PER_SEGMENT) {
+                size_t to_copy = (gyro_idx + result.gyro_count > SAMPLES_PER_SEGMENT) ? (SAMPLES_PER_SEGMENT - gyro_idx) : result.gyro_count;
+                dsp_opt_int16_to_float(gx_raw, &slot->data.gyro_x[gyro_idx], to_copy);
+                dsp_opt_int16_to_float(gy_raw, &slot->data.gyro_y[gyro_idx], to_copy);
+                dsp_opt_int16_to_float(gz_raw, &slot->data.gyro_z[gyro_idx], to_copy);
+                gyro_idx += to_copy;
+            }
+            
+            if (result.accel_count == 0 && result.gyro_count == 0) {
+                taskYIELD();
+            }
         }
         
-        // filled buffer slot
         slot->sample_rate = global_sample_rate;
         slot->segment_id = segment_id_counter;
         if (skip_id) {
             ESP_LOGW(TAG, "sensor FIFO overrun detected, skipping an ID");
-            segment_id_counter += 2; // skip one id
+            segment_id_counter += 2;
         } else {
             segment_id_counter += 1;
         }
         
-        // lock and set ready flags
+        ESP_LOGI(TAG, "slot %d harvested 4096 samples (segment ID %u)", slot_idx, (unsigned int)slot->segment_id);
+        
         quad_buffer_lock(slot);
-        slot->flags = 0; // clear harvesting flag
+        slot->flags = 0;
         
         bool run_inf = global_inference_enabled;
         bool write_sd = global_sd_enabled;
@@ -166,7 +158,7 @@ static void harvester_task(void *pvParameters) {
         if (run_inf) {
             slot->flags |= BUF_FLAG_READY_INF;
         } else {
-            slot->flags |= BUF_FLAG_READY_SEND; // bypass directly to uploader
+            slot->flags |= BUF_FLAG_READY_SEND;
         }
         
         if (write_sd) {
@@ -174,7 +166,6 @@ static void harvester_task(void *pvParameters) {
         }
         quad_buffer_unlock(slot);
         
-        // Notify other threads via the event queues
         if (run_inf) {
             xQueueSend(ready_inf_queue, &slot_idx, 0);
         } else {
@@ -184,17 +175,15 @@ static void harvester_task(void *pvParameters) {
             xQueueSend(pending_sd_queue, &slot_idx, 0);
         }
         
-        // rotate write index (compatibility)
         qb->write_idx = (qb->write_idx + 1) % 4;
     }
 }
 
 void harvester_start(quad_buffer_t *qb) {
-    // start core 1 task for sensor harvesting
     xTaskCreatePinnedToCore(
         harvester_task,
         "harvester",
-        8192,
+        16384,
         qb,
         5,
         NULL,

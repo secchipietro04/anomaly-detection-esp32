@@ -6,11 +6,11 @@ EmitReason_ManualDump = 4
 
 EmitReason = EmitReason_Continuous / EmitReason_Anomaly / EmitReason_Periodic / EmitReason_ManualDump
 
-Datapoints = (
+Datapoints = {
     "x" => [0*512 float32],
     "y" => [0*512 float32],
     "z" => [0*512 float32]
-)
+}
 
 ;  Uplink: data batch
 ; Topic: v1/{node_id}/data/{sensor_type} (QoS 1)

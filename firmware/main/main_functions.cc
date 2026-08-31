@@ -20,7 +20,7 @@ extern "C" {
 
 static const char *TAG = "main_app";
 
-#define DEFAULT_BROKER "mqtt://192.168.1.100:1883"
+#define DEFAULT_BROKER "mqtt://10.49.79.1:1883"
 
 // global configurations definitions
 float global_sample_rate = 3840.0f;
