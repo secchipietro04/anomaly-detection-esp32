@@ -167,6 +167,7 @@ async def handle_inference_packet(node_id: str, payload: bytes, session: AsyncSe
         autoencoder_model_id=inf.ae_id,
         mse=float(inf.mse),
         anomaly=bool(inf.anom),
+        inference_time_ms=inf.time,
         is_recalculated=False
     )
     session.add(res)

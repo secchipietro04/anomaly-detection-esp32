@@ -95,6 +95,59 @@
           "format": "table"
         }
       ]
+    },
+    {
+      "id": 7,
+      "title": "Edge Inference Execution Time (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp AS time, node_id, inference_time_ms FROM inference_results WHERE inference_time_ms IS NOT NULL AND $__timeFilter(timestamp) ORDER BY timestamp",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 50, "color": "yellow" },
+              { "value": 100, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Average Inference Latency by Submodel (Efficiency)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT CONCAT('Model #', autoencoder_model_id) AS metric, AVG(inference_time_ms) AS avg_time_ms FROM inference_results WHERE inference_time_ms IS NOT NULL GROUP BY autoencoder_model_id ORDER BY avg_time_ms ASC",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 40, "color": "yellow" },
+              { "value": 80, "color": "red" }
+            ]
+          }
+        }
+      }
     }
   ]
 }

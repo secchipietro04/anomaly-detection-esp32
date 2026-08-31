@@ -59,6 +59,7 @@ class InferencePacket(BaseModel):
     ae_id: int  # ae_m_id: ae model ID
     mse: float  # mse_loss: Reconstruction loss
     anom: bool  # is_anomaly
+    time: Optional[int] = None  # inference execution time in ms (optional)
 
 class NodeCapabilities(BaseModel):
     accel_freqs: list[float]
