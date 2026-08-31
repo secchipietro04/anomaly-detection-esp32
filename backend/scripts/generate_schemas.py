@@ -24,8 +24,6 @@ class ArchitectureTag(IntEnum):
     CA_2D = 3
     CLSTM = 4
     DA = 5
-    FITS = 6
-    TN = 7
     DENSE_R = 10
     STFT_MCNN = 12
     ONE_D_CNN_R = 13
