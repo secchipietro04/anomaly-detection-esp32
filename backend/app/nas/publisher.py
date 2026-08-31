@@ -1,7 +1,8 @@
-# persists trained models to db and publishes decoupled ensemble and model endpoints
+# persists trained models to db and publishes lightweight ensemble routing table
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
 
 from app.cbor.codec import to_cbor
 from app.cbor.schemas import (
@@ -21,7 +22,13 @@ async def deploy_nas_result(
     result: NASSearchResult,
     latest_segment_id: int = 0
 ) -> None:
-    # 1. save and publish router model
+    # 0. in-place cleanup: remove previous obsolete models and ensembles for this node from db
+    stmt_del_m = delete(ModelPackageModel).where(ModelPackageModel.node_id == node_id)
+    await session.execute(stmt_del_m)
+    stmt_del_e = delete(EnsembleConfigModel).where(EnsembleConfigModel.node_id == node_id)
+    await session.execute(stmt_del_e)
+
+    # 1. save router model to db
     r_pkg = result.router_model
     r_record = ModelPackageModel(
         id=r_pkg.m_id,
@@ -33,9 +40,8 @@ async def deploy_nas_result(
         config=r_pkg.model_dump(exclude={"data"})
     )
     session.add(r_record)
-    await publisher.publish_model(node_id, "router", r_pkg.m_id, to_cbor(r_pkg), retain=True)
 
-    # 2. save and publish memory model if present
+    # 2. save memory model to db if present
     if result.memory_model:
         m_pkg = result.memory_model
         m_record = ModelPackageModel(
@@ -48,9 +54,8 @@ async def deploy_nas_result(
             config=m_pkg.model_dump(exclude={"data"})
         )
         session.add(m_record)
-        await publisher.publish_model(node_id, "memory", m_pkg.m_id, to_cbor(m_pkg), retain=True)
 
-    # 3. save and publish each autoencoder submodel
+    # 3. save each autoencoder submodel to db
     for ae_pkg in result.autoencoder_models:
         ae_record = ModelPackageModel(
             id=ae_pkg.m_id,
@@ -62,9 +67,8 @@ async def deploy_nas_result(
             config=ae_pkg.model_dump(exclude={"data"})
         )
         session.add(ae_record)
-        await publisher.publish_model(node_id, "submodel", ae_pkg.m_id, to_cbor(ae_pkg), retain=True)
 
-    # 4. save and publish lightweight ensemble routing table
+    # 4. save and publish lightweight ensemble routing table (retain=False)
     ens_cfg = result.ensemble_config
     ens_record = EnsembleConfigModel(
         id=int(datetime.now(timezone.utc).timestamp()),
@@ -87,3 +91,4 @@ async def deploy_nas_result(
     reset_node_volume(node_id)
 
     logger.info(f"Successfully deployed ensemble for node {node_id}: router={r_pkg.m_id}, submodels={[a.m_id for a in result.autoencoder_models]}")
+

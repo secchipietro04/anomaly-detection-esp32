@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     mqtt_topic_prefix: str = Field(default="v1", alias="MQTT_TOPIC_PREFIX")
 
     # clearml tracking
-    clearml_api_host: str = Field(default="http://localhost:8008", alias="CLEARML_API_HOST")
-    clearml_web_host: str = Field(default="http://localhost:8080", alias="CLEARML_WEB_HOST")
-    clearml_files_host: str = Field(default="http://localhost:8081", alias="CLEARML_FILES_HOST")
+    clearml_api_host: str = Field(default="http://localhost:30908", alias="CLEARML_API_HOST")
+    clearml_web_host: str = Field(default="http://localhost:30988", alias="CLEARML_WEB_HOST")
+    clearml_files_host: str = Field(default="http://localhost:30981", alias="CLEARML_FILES_HOST")
     clearml_project_name: str = Field(default="research-ml-edge", alias="CLEARML_PROJECT_NAME")
     clearml_access_key: str = Field(default="", alias="CLEARML_ACCESS_KEY")
     clearml_secret_key: str = Field(default="", alias="CLEARML_SECRET_KEY")

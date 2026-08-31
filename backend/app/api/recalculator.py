@@ -118,5 +118,15 @@ async def recalculate_segment(
         inf.anomaly = anomaly
         inf.is_recalculated = True
         inf.autoencoder_model_id = autoencoder_model_id
+    else:
+        inf = InferenceResultModel(
+            node_id=node_id,
+            segment_id=segment_id,
+            mse=mse,
+            anomaly=anomaly,
+            is_recalculated=True,
+            autoencoder_model_id=autoencoder_model_id
+        )
+        session.add(inf)
     await session.commit()
     return mse, anomaly

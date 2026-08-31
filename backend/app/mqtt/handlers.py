@@ -5,15 +5,18 @@ from typing import Dict, Optional, Callable, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.mqtt.router import MQTTRouter
 from app.mqtt.publisher import MQTTPublisher
-from app.cbor.codec import from_cbor, loads_cbor
+from app.cbor.codec import from_cbor, to_cbor, loads_cbor
 from app.cbor.schemas import (
-    Segment, InferencePacket, NodeCapabilities, NodeHealthInfo
+    Segment, InferencePacket, NodeCapabilities, NodeHealthInfo,
+    RuntimeConfig, EnsembleConfig, RouteEntry,
+    AutoencoderModelPackage, RouterModelPackage, MemoryModelPackage, ModelType
 )
 from app.database.models import (
     NodeModel, NodeCapabilitiesModel, NodeHealthModel,
-    RawTelemetryModel, InferenceResultModel, ModelPackageModel,
+    RawTelemetryModel, InferenceResultModel, ModelPackageModel, EnsembleConfigModel,
     db_register_node, db_upsert_capabilities, db_get_untrained_bytes_for_node
 )
 
@@ -28,7 +31,7 @@ _initialized_nodes: set = set()
 _on_nas_trigger: Optional[Callable[[str, int], Any]] = None
 
 def set_nas_trigger_callback(callback: Callable[[str, int], Any]) -> None:
-    # register callback fired when 1MB threshold reached
+    # register callback fired when threshold reached
     global _on_nas_trigger
     _on_nas_trigger = callback
 
@@ -88,9 +91,10 @@ async def handle_sensor_data(node_id: str, payload: bytes, session: AsyncSession
     current_vol += raw_bytes
     _volume_accumulator[node_id] = current_vol
 
-    # trigger nas if threshold exceeded (1MB = 1048576 bytes)
-    if current_vol >= 1048576 and _on_nas_trigger is not None:
-        logger.info(f"Node {node_id} volume {current_vol} >= 1MB threshold. Triggering NAS training!")
+    # trigger nas if threshold exceeded
+    settings = get_settings()
+    if current_vol >= settings.nas_data_threshold_bytes and _on_nas_trigger is not None:
+        logger.info(f"Node {node_id} volume {current_vol} >= {settings.nas_data_threshold_bytes} bytes threshold. Triggering NAS training!")
         try:
             res = _on_nas_trigger(node_id, current_vol)
             if hasattr(res, "__await__"):
@@ -130,11 +134,11 @@ async def handle_node_health(node_id: str, payload: bytes, session: AsyncSession
         node_id=node_id,
         timestamp=datetime.now(timezone.utc),
         ram_free=h.ram,
-        sd_status=1 if h.sd_ok else 0,
+        sd_status=int(h.sd),
         cached_models=h.cache,
-        last_segment_id=h.seg_id,
-        status=h.stat,
-        ips=h.ips
+        last_segment_id=h.last,
+        status=h.status or "idle",
+        ips=h.ips or 0.0
     )
     session.add(health)
     
@@ -157,20 +161,55 @@ async def handle_inference_packet(node_id: str, payload: bytes, session: AsyncSe
     res = InferenceResultModel(
         node_id=node_id,
         timestamp=datetime.now(timezone.utc),
-        segment_id=inf.seg_id,
-        emit_reason=inf.reason,
+        segment_id=inf.id,
+        emit_reason=int(inf.reason),
         router_model_id=inf.r_m_id,
-        autoencoder_model_id=inf.ae_m_id,
-        mse=inf.mse,
-        anomaly=inf.anomaly,
+        autoencoder_model_id=inf.ae_id,
+        mse=float(inf.mse),
+        anomaly=bool(inf.anom),
         is_recalculated=False
     )
     session.add(res)
     await session.commit()
 
+@router.subscribe("v1/{node_id}/ensemble/fetch")
+async def handle_ensemble_fetch_request(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
+    # on-demand ensemble routing table request from sensor on reconnect
+    stmt = select(EnsembleConfigModel).where(EnsembleConfigModel.node_id == node_id).order_by(EnsembleConfigModel.deployed_at.desc()).limit(1)
+    res = await session.execute(stmt)
+    ens = res.scalar_one_or_none()
+    if not ens:
+        logger.warning(f"Sensor {node_id} requested ensemble table but none found")
+        return
+
+    routes = [RouteEntry(out_ix=r["out_ix"], m_id=r["m_id"]) for r in (ens.routes or [])]
+    cfg = EnsembleConfig(
+        warmup=ens.warmup,
+        mem_id=ens.memory_model_id,
+        r_m_id=ens.router_model_id or 0,
+        routes=routes
+    )
+    await publisher.publish_ensemble(node_id, to_cbor(cfg))
+    logger.info(f"Served on-demand ensemble table to sensor {node_id}")
+
+@router.subscribe("v1/{node_id}/config/fetch")
+async def handle_config_fetch_request(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
+    # on-demand runtime config request from sensor on reconnect
+    node = await session.get(NodeModel, node_id)
+    if not node or not node.current_config:
+        logger.warning(f"Sensor {node_id} requested config but none registered")
+        return
+
+    try:
+        cfg = RuntimeConfig.model_validate(node.current_config)
+        await publisher.publish_config(node_id, to_cbor(cfg))
+        logger.info(f"Served on-demand runtime config to sensor {node_id}")
+    except Exception as e:
+        logger.error(f"Error serving config to {node_id}: {e}")
+
 @router.subscribe("v1/{node_id}/models/fetch/{model_type}/{model_id}")
 async def handle_model_fetch_request(node_id: str, model_type: str, model_id: str, session: AsyncSession, publisher: MQTTPublisher):
-    # on-demand model download request from sensor (e.g. no-SD mode)
+    # on-demand model download request from sensor (reconstructs typed CBOR model package)
     try:
         m_id = int(model_id)
     except ValueError:
@@ -181,13 +220,33 @@ async def handle_model_fetch_request(node_id: str, model_type: str, model_id: st
         logger.warning(f"Sensor {node_id} requested non-existent model {m_id}")
         return
 
-    # publish requested model binary back to sensor
-    await publisher.publish_model(
-        node_id=node_id,
-        model_type=model_type,
-        model_id=m_id,
-        payload=model.tflite_binary,
-        qos=1,
-        retain=False
-    )
-    logger.info(f"Served on-demand model {m_id} to sensor {node_id}")
+    cfg = dict(model.config or {})
+    cfg["m_id"] = model.id
+    cfg["data"] = model.tflite_binary
+    cfg["type"] = model.model_type
+    if model.tag is not None:
+        cfg["tag"] = model.tag
+
+    try:
+        if model.model_type == int(ModelType.AUTOENCODER):
+            pkg = AutoencoderModelPackage.model_validate(cfg)
+        elif model.model_type == int(ModelType.ROUTER):
+            pkg = RouterModelPackage.model_validate(cfg)
+        elif model.model_type == int(ModelType.MEMORY):
+            pkg = MemoryModelPackage.model_validate(cfg)
+        else:
+            logger.warning(f"Unknown model type {model.model_type} for model {m_id}")
+            return
+
+        # publish requested CBOR model package back to sensor
+        await publisher.publish_model(
+            node_id=node_id,
+            model_type=model_type,
+            model_id=m_id,
+            payload=to_cbor(pkg),
+            qos=1,
+            retain=False
+        )
+        logger.info(f"Served on-demand CBOR model {m_id} ({model_type}) to sensor {node_id}")
+    except Exception as e:
+        logger.error(f"Failed to encode and serve model {m_id}: {e}")
