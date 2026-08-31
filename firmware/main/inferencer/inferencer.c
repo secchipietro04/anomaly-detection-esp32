@@ -13,6 +13,7 @@
 #include <math.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
+#include "esp_timer.h"
 
 static const char *TAG = "inferencer";
 
@@ -351,8 +352,14 @@ static void inferencer_task(void *pvParameters) {
         if (slot->flags & BUF_FLAG_READY_INF) {
             ESP_LOGI(TAG, "processing slot %d (segment ID %u)", slot_idx, (unsigned int)slot->segment_id);
             
+#if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
+            int64_t inf_start = esp_timer_get_time();
+#endif
             compute_signal_features(slot, accel_mag, gyro_mag, accel_spec, gyro_spec);
             run_ensemble_inference(slot, accel_spec, gyro_spec);
+#if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
+            slot->inference_time_ms = (uint32_t)((esp_timer_get_time() - inf_start) / 1000);
+#endif
             
             // lock slot and change flags
             quad_buffer_lock(slot);
