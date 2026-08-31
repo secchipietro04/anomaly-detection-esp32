@@ -13,7 +13,6 @@ from app.database.models import (
 )
 from app.services.config_service import sync_sensor_config, ConfigValidationError, NodeNotFoundError
 from app.mqtt.publisher import MQTTPublisher
-from app.api.recalculator import recalculate_segment
 
 logger = logging.getLogger("api.routes")
 router = APIRouter()
@@ -29,7 +28,7 @@ class ConfigUpdateRequest(BaseModel):
 class RecalculateRequest(BaseModel):
     node_id: str
     segment_id: int
-    model_id: int
+    model_id: Optional[int] = None
     anomaly_threshold: float = Field(default=0.1, gt=0)
     tsteps: int = Field(default=8, ge=1, le=64)
 
@@ -135,12 +134,29 @@ async def update_sensor_config(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from app.api.recalculator import (
+    recalculate_segment,
+    test_noise_resilience,
+    test_cross_submodel_specificity
+)
+
+class CrossSpecificityTestRequest(BaseModel):
+    num_samples_per_mode: int = Field(default=50, ge=5, le=200)
+    tsteps: int = Field(default=8, ge=1, le=64)
+
+class ResilienceTestRequest(BaseModel):
+    num_sample_segments: int = Field(default=64, ge=8, le=256)
+    num_noise_levels: int = Field(default=64, ge=8, le=128)
+    min_power_2: float = Field(default=-10.0)
+    max_power_2: float = Field(default=0.0)
+    tsteps: int = Field(default=8, ge=1, le=64)
+
 @router.post("/recalculate", response_model=RecalculateResponse)
 async def recalculate(
     req: RecalculateRequest,
     session: AsyncSession = Depends(get_session_dependency)
 ):
-    # run local tflite inference
+    # run local tflite inference on active ensemble or explicit model
     try:
         mse, anomaly = await recalculate_segment(
             session=session,
@@ -161,3 +177,49 @@ async def recalculate(
     except Exception as e:
         logger.exception(f"Recalculate failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sensors/{node_id}/resilience-test")
+async def benchmark_noise_resilience(
+    node_id: str,
+    req: ResilienceTestRequest = ResilienceTestRequest(),
+    session: AsyncSession = Depends(get_session_dependency)
+):
+    # executes base-2 noise resilience spectrogram benchmark (2^-10 to 2^0) across frequency bins
+    try:
+        report = await test_noise_resilience(
+            session=session,
+            node_id=node_id,
+            num_sample_segments=req.num_sample_segments,
+            num_noise_levels=req.num_noise_levels,
+            min_power_2=req.min_power_2,
+            max_power_2=req.max_power_2,
+            tsteps=req.tsteps
+        )
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Resilience test failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sensors/{node_id}/cross-specificity-test")
+async def benchmark_cross_specificity(
+    node_id: str,
+    req: CrossSpecificityTestRequest = CrossSpecificityTestRequest(),
+    session: AsyncSession = Depends(get_session_dependency)
+):
+    # evaluates cross-submodel specificity matrix by testing autoencoders on foreign cluster data
+    try:
+        report = await test_cross_submodel_specificity(
+            session=session,
+            node_id=node_id,
+            num_samples_per_mode=req.num_samples_per_mode,
+            tsteps=req.tsteps
+        )
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Cross-specificity test failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
