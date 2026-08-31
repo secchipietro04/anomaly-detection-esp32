@@ -85,6 +85,7 @@ class InferenceResultModel(Base):
     autoencoder_model_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     mse: Mapped[float] = mapped_column(Float, default=0.0)
     anomaly: Mapped[bool] = mapped_column(Boolean, default=False)
+    inference_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_recalculated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

@@ -34,7 +34,8 @@ InferencePacket = {
   "r_m_id"     => uint,        ; router model ID
   "ae_id"      => uint,        ; ae_m_id: ae model ID 
   "mse"        => float,       ; mse_loss: Reconstruction loss
-  "anom"       => bool         ; is_anomaly  
+  "anom"       => bool,        ; is_anomaly  
+  ? "time"     => uint         ; inference execution time in ms (optional)
 }
 
 NodeCapabilities = {
