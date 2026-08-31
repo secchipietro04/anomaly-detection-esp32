@@ -310,5 +310,13 @@ void mqtt_handlers_init(mqtt_wrapper_t *mqtt_client, quad_buffer_t *qb) {
         
         snprintf(topic, sizeof(topic), "v1/%s/models/submodel/+", global_node_id);
         local_mqtt->subscribe(local_mqtt, topic, 1, ensemble_cb, NULL);
+
+        // request active runtime config and ensemble from backend on connect
+        char fetch_topic[128];
+        snprintf(fetch_topic, sizeof(fetch_topic), "v1/%s/config/fetch", global_node_id);
+        local_mqtt->publish(local_mqtt, fetch_topic, NULL, 0, 1, 0);
+
+        snprintf(fetch_topic, sizeof(fetch_topic), "v1/%s/ensemble/fetch", global_node_id);
+        local_mqtt->publish(local_mqtt, fetch_topic, NULL, 0, 1, 0);
     }
 }

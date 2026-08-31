@@ -4,10 +4,10 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 
-#define MAX_TOPIC_ROUTES 10
+#define MAX_TOPIC_ROUTES 32
 
 typedef struct {
-    char topic[64];
+    char topic[128];
     mqtt_topic_cb_t callback;
     void *user_ctx;
 } mqtt_route_t;
