@@ -39,6 +39,9 @@ typedef struct {
     bool is_anomaly;
     bool is_inferenced;
     bool is_replay; // true if block is read from SD card for dump
+#if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
+    uint32_t inference_time_ms;
+#endif
 } buffer_slot_t;
 
 typedef struct {

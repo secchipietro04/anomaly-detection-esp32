@@ -4,4 +4,10 @@ menu "Model Ensemble Configuration"
         default y
         help
             Enable the Model Ensemble component that integrates routing and submodel execution.
+
+    config RECORD_INFERENCE_TIME
+        bool "Record and Telemetry Inference Execution Time"
+        default y
+        help
+            Measure inference execution time in ms and send it in the InferencePacket CBOR payload.
 endmenu

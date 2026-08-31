@@ -110,6 +110,10 @@ static bool serialize_and_publish_inference(buffer_slot_t *slot, int32_t reason)
     pkt.InferencePacket_ae_id = slot->active_submodel_id;
     pkt.InferencePacket_mse = slot->anomaly_score;
     pkt.InferencePacket_anom = slot->is_anomaly;
+#if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
+    pkt.InferencePacket_time_present = true;
+    pkt.InferencePacket_time.InferencePacket_time = slot->inference_time_ms;
+#endif
     
     uint8_t buf[256];
     size_t encoded_len = 0;
