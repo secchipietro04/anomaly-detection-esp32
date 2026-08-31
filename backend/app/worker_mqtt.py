@@ -6,6 +6,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app.database.session import init_database
 from app.mqtt.client import MQTTClientManager
 from app.mqtt.handlers import set_nas_trigger_callback
 
@@ -13,10 +14,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("worker_mqtt")
 
 async def on_nas_threshold_reached(node_id: str, volume: int):
-    # log event when node surpasses 1mb
     logger.info(f"Notification: Node {node_id} reached {volume} bytes. Ready for NAS!")
 
 async def main():
+    logger.info("Initializing database...")
+    await init_database()
     logger.info("Starting MQTT Ingestion Worker...")
     set_nas_trigger_callback(on_nas_threshold_reached)
     client = MQTTClientManager()

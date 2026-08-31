@@ -1,15 +1,14 @@
 # services module
 from app.services.config_service import (
-    ConfigError,
     ConfigValidationError,
     NodeNotFoundError,
-    CapabilitiesNotFoundError,
-    ConfigDeployError,
     validate_runtime_config,
-    ConfigService,
-    deploy_sensor_config,
-    get_sensor_config,
+    sync_sensor_config,
 )
+
+ConfigError = ConfigValidationError
+CapabilitiesNotFoundError = ConfigValidationError
+ConfigDeployError = RuntimeError
 
 __all__ = [
     "ConfigError",
@@ -18,7 +17,5 @@ __all__ = [
     "CapabilitiesNotFoundError",
     "ConfigDeployError",
     "validate_runtime_config",
-    "ConfigService",
-    "deploy_sensor_config",
-    "get_sensor_config",
+    "sync_sensor_config",
 ]

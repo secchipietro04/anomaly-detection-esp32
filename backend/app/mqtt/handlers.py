@@ -61,19 +61,23 @@ async def handle_sensor_data(node_id: str, payload: bytes, session: AsyncSession
 
     # insert raw telemetry
     raw_bytes = len(payload)
+    data_dict = seg.data if isinstance(seg.data, dict) else {}
+    accel = data_dict.get("accel", {}) if isinstance(data_dict.get("accel"), dict) else {}
+    gyro = data_dict.get("gyro", {}) if isinstance(data_dict.get("gyro"), dict) else {}
+
     record = RawTelemetryModel(
         node_id=node_id,
         timestamp=datetime.now(timezone.utc),
         segment_id=seg.id,
         chunk_id=seg.chunk,
         sample_rate=seg.rate,
-        emit_reason=seg.reason,
-        accel_x=seg.ax,
-        accel_y=seg.ay,
-        accel_z=seg.az,
-        gyro_x=seg.gx,
-        gyro_y=seg.gy,
-        gyro_z=seg.gz,
+        emit_reason=int(seg.reason),
+        accel_x=accel.get("x", []),
+        accel_y=accel.get("y", []),
+        accel_z=accel.get("z", []),
+        gyro_x=gyro.get("x", []),
+        gyro_y=gyro.get("y", []),
+        gyro_z=gyro.get("z", []),
         raw_bytes_count=raw_bytes
     )
     session.add(record)

@@ -1,0 +1,136 @@
+services:
+
+  clearml_elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: clearml_es
+    restart: "on-failure:5"
+    environment:
+      xpack.security.enabled: "false"
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - clearml_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+    networks:
+      - edge-ai-network
+
+  clearml_mongo:
+    image: mongo:7.0
+    container_name: clearml_mongo
+    restart: "on-failure:5"
+    volumes:
+      - clearml_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edge-ai-network
+
+  clearml_redis:
+    image: redis:7.2-alpine
+    container_name: clearml_redis
+    restart: "on-failure:5"
+    volumes:
+      - clearml_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edge-ai-network
+
+  clearml_apiserver:
+    image: allegroai/clearml:1.16.0
+    container_name: clearml_apiserver
+    restart: "on-failure:5"
+    command: ["apiserver"]
+    links:
+      - clearml_elasticsearch:elasticsearch
+      - clearml_mongo:mongodb
+      - clearml_redis:redis
+    ports:
+      - "30908:8008"
+    environment:
+      SERVER_TYPE: apiserver
+      CLEARML_ELASTIC_SERVICE_HOST: clearml_elasticsearch
+      CLEARML_ELASTIC_SERVICE_PORT: 9200
+      CLEARML_MONGODB_SERVICE_HOST: clearml_mongo
+      CLEARML_MONGODB_SERVICE_PORT: 27017
+      CLEARML_REDIS_SERVICE_HOST: clearml_redis
+      CLEARML_REDIS_SERVICE_PORT: 6379
+    depends_on:
+      clearml_elasticsearch:
+        condition: service_healthy
+      clearml_mongo:
+        condition: service_healthy
+      clearml_redis:
+        condition: service_healthy
+    networks:
+      - edge-ai-network
+
+  clearml_fileserver:
+    image: allegroai/clearml:1.16.0
+    container_name: clearml_fileserver
+    restart: "on-failure:5"
+    command: ["fileserver"]
+    links:
+      - clearml_apiserver:apiserver
+      - clearml_redis:redis
+    ports:
+      - "30981:8081"
+    environment:
+      SERVER_TYPE: fileserver
+      CLEARML_API_HOST: clearml_apiserver
+      CLEARML_API_PORT: 8008
+      CLEARML_REDIS_SERVICE_HOST: clearml_redis
+      CLEARML_REDIS_SERVICE_PORT: 6379
+    volumes:
+      - clearml_data:/opt/clearml/data
+      - clearml_logs:/opt/clearml/logs
+    depends_on:
+      - clearml_apiserver
+      - clearml_redis
+    networks:
+      - edge-ai-network
+
+  clearml_webserver:
+    image: allegroai/clearml:1.16.0
+    container_name: clearml_webserver
+    restart: "on-failure:5"
+    command: ["webserver"]
+    links:
+      - clearml_apiserver:apiserver
+      - clearml_fileserver:fileserver
+      - clearml_redis:redis
+    ports:
+      - "30988:80"
+    environment:
+      SERVER_TYPE: webserver
+      CLEARML_API_HOST: clearml_apiserver
+      CLEARML_API_PORT: 8008
+      CLEARML_FILES_HOST: clearml_fileserver
+      CLEARML_FILES_PORT: 8081
+    depends_on:
+      - clearml_apiserver
+      - clearml_fileserver
+      - clearml_redis
+    networks:
+      - edge-ai-network
+
+volumes:
+  clearml_es_data:
+  clearml_mongo_data:
+  clearml_redis_data:
+  clearml_data:
+  clearml_logs:
+
+networks:
+  edge-ai-network:
+    external: true

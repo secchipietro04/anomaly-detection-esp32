@@ -1,81 +1,152 @@
-
 services:
-  emqx:
-    image: emqx/emqx-enterprise:6.2.2
-    container_name: emqx
-    extra_hosts:
-      - "node1.cluster.local:127.0.0.1"
-    ports:
-      - "1883:1883"   # MQTT TCP
-      - "8883:8883"   # MQTT SSL/TLS
-      - "8083:8083"   # MQTT WebSockets
-      - "8084:8084"   # MQTT WSS
-      - "18083:18083" # Dashboard UI
-    ulimits:
-      nofile:
-        soft: 1048576
-        hard: 1048576
-    environment:
-      EMQX_NODE_NAME: emqx@node1.cluster.local
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: emqx
-      POSTGRES_PASSWORD: emqx
-      POSTGRES_DB: emqx
-      EMQX_CONNECTORS__PGSQL__POSTGRES_CONN__SERVER: "${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}"
-      EMQX_CONNECTORS__PGSQL__POSTGRES_CONN__DATABASE: "${POSTGRES_DB:-emqx}"
-      EMQX_CONNECTORS__PGSQL__POSTGRES_CONN__USERNAME: "${POSTGRES_USER:-emqx}"
-      EMQX_CONNECTORS__PGSQL__POSTGRES_CONN__PASSWORD: "${POSTGRES_PASSWORD:-emqx}"
-    networks:
-      - emqx-postgres-bridge
-    healthcheck:
-      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
-      interval: 5s
-      timeout: 25s
-      retries: 5
-    volumes:
-      - $PWD/dockerdata/emqx:/opt/emqx/data
-      - $PWD/emqx/rules.conf:/opt/emqx/etc/base.hocon:ro
-
-    depends_on:
-      - postgres
 
   postgres:
     image: timescale/timescaledb:latest-pg16
-    container_name: postgres
+    container_name: tsdb
+    restart: "on-failure:5"
     environment:
-      POSTGRES_USER: emqx
-      POSTGRES_PASSWORD: emqx
-      POSTGRES_DB: emqx
+      POSTGRES_USER: ${POSTGRES_USER:-emqx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
+      POSTGRES_DB: ${POSTGRES_DB:-emqx}
     ports:
-      - "5432:5432"
+      - "30932:5432"
     volumes:
-      - $PWD/dockerdata/postgres:/var/lib/postgresql
-      - $PWD/database/init.sql:/docker-entrypoint-initdb.d/init.sql
-
+      - tsdb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-emqx} -d ${POSTGRES_DB:-emqx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - emqx-postgres-bridge
+      - edge-ai-network
 
-  backend:
+  emqx:
+    image: emqx/emqx:5.7.0
+    container_name: emqx
+    restart: "on-failure:5"
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "30983:18083"
+    environment:
+      EMQX_NAME: emqx
+      EMQX_HOST: "127.0.0.1"
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: public
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - edge-ai-network
+
+  mqtt_service:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    container_name: backend
+      dockerfile: backend/app/mqtt/Dockerfile
+    container_name: mqtt_service
+    restart: "on-failure:5"
     environment:
-      - MQTT_BROKER=emqx
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=emqx
-      - POSTGRES_PASSWORD=emqx
-      - POSTGRES_DB=emqx
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-emqx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
+      POSTGRES_DB: ${POSTGRES_DB:-emqx}
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
     depends_on:
+      postgres:
+        condition: service_healthy
       emqx:
         condition: service_healthy
-      postgres:
-        condition: service_started
     networks:
-      - emqx-postgres-bridge
+      - edge-ai-network
+
+  api_service:
+    build:
+      context: .
+      dockerfile: backend/app/api/Dockerfile
+    container_name: api_service
+    restart: "on-failure:5"
+    ports:
+      - "30900:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-emqx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
+      POSTGRES_DB: ${POSTGRES_DB:-emqx}
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edge-ai-network
+
+  nas_service:
+    build:
+      context: .
+      dockerfile: backend/app/nas/Dockerfile
+    container_name: nas_service
+    restart: "on-failure:5"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-emqx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
+      POSTGRES_DB: ${POSTGRES_DB:-emqx}
+      MQTT_BROKER: emqx
+      MQTT_PORT: 1883
+      CLEARML_API_HOST: http://clearml_apiserver:8008
+      CLEARML_WEB_HOST: http://clearml_webserver:80
+      CLEARML_FILES_HOST: http://clearml_fileserver:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    networks:
+      - edge-ai-network
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    restart: "on-failure:5"
+    ports:
+      - "30930:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edge-ai-network
+
+volumes:
+  tsdb_data:
+  emqx_data:
+  emqx_log:
+  grafana_data:
 
 networks:
-  emqx-postgres-bridge:
+  edge-ai-network:
+    name: edge-ai-network
     driver: bridge

@@ -1,35 +1,33 @@
-# separated backend microservices: mqtt_service, api_service, nas_service, timescaledb, emqx, grafana, clearml
-version: "3.9"
-
 services:
 
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: tsdb
-    restart: unless-stopped
+    restart: "on-failure:5"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-emqx}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emqx}
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
     ports:
-      - "5432:5432"
+      - "30932:5432"
     volumes:
       - tsdb_data:/var/lib/postgresql/data
-      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-emqx} -d ${POSTGRES_DB:-emqx}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - edge-ai-network
 
   emqx:
     image: emqx/emqx:5.7.0
     container_name: emqx
-    restart: unless-stopped
+    restart: "on-failure:5"
     ports:
       - "1883:1883"
       - "8083:8083"
-      - "18083:18083"
+      - "30983:18083"
     environment:
       EMQX_NAME: emqx
       EMQX_HOST: "127.0.0.1"
@@ -43,13 +41,15 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+    networks:
+      - edge-ai-network
 
   mqtt_service:
     build:
       context: .
-      dockerfile: app/mqtt/Dockerfile
+      dockerfile: backend/app/mqtt/Dockerfile
     container_name: mqtt_service
-    restart: unless-stopped
+    restart: "on-failure:5"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -63,15 +63,17 @@ services:
         condition: service_healthy
       emqx:
         condition: service_healthy
+    networks:
+      - edge-ai-network
 
   api_service:
     build:
       context: .
-      dockerfile: app/api/Dockerfile
+      dockerfile: backend/app/api/Dockerfile
     container_name: api_service
-    restart: unless-stopped
+    restart: "on-failure:5"
     ports:
-      - "8000:8000"
+      - "30900:8000"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -90,13 +92,15 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    networks:
+      - edge-ai-network
 
   nas_service:
     build:
       context: .
-      dockerfile: app/nas/Dockerfile
+      dockerfile: backend/app/nas/Dockerfile
     container_name: nas_service
-    restart: unless-stopped
+    restart: "on-failure:5"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -105,90 +109,44 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
-      CLEARML_API_HOST: http://clearml_server:8008
-      CLEARML_WEB_HOST: http://clearml_server:8080
-      CLEARML_FILES_HOST: http://clearml_server:8081
+      CLEARML_API_HOST: http://clearml_apiserver:8008
+      CLEARML_WEB_HOST: http://clearml_webserver:80
+      CLEARML_FILES_HOST: http://clearml_fileserver:8081
     depends_on:
       postgres:
         condition: service_healthy
       emqx:
         condition: service_healthy
+    networks:
+      - edge-ai-network
 
   grafana:
     image: grafana/grafana:10.4.2
     container_name: grafana
-    restart: unless-stopped
+    restart: "on-failure:5"
     ports:
-      - "3000:3000"
+      - "30930:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       postgres:
         condition: service_healthy
-
-  clearml_elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
-    container_name: clearml_es
-    restart: unless-stopped
-    environment:
-      xpack.security.enabled: "false"
-      discovery.type: single-node
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
-    volumes:
-      - clearml_es_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-
-  clearml_mongo:
-    image: mongo:7.0
-    container_name: clearml_mongo
-    restart: unless-stopped
-    volumes:
-      - clearml_mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-
-  clearml_server:
-    image: allegroai/clearml:1.16.0
-    container_name: clearml_server
-    restart: unless-stopped
-    ports:
-      - "8008:8008"
-      - "8080:80"
-      - "8081:8081"
-    environment:
-      CLEARML_SERVER_DEPLOYMENT_TYPE: "single"
-      CLEARML_ELASTIC_SERVICE_HOST: clearml_elasticsearch
-      CLEARML_ELASTIC_SERVICE_PORT: 9200
-      CLEARML_MONGODB_SERVICE_HOST: clearml_mongo
-      CLEARML_MONGODB_SERVICE_PORT: 27017
-    volumes:
-      - clearml_data:/opt/clearml/data
-      - clearml_logs:/opt/clearml/logs
-    depends_on:
-      clearml_elasticsearch:
-        condition: service_healthy
-      clearml_mongo:
-        condition: service_healthy
+    networks:
+      - edge-ai-network
 
 volumes:
   tsdb_data:
   emqx_data:
   emqx_log:
   grafana_data:
-  clearml_es_data:
-  clearml_mongo_data:
-  clearml_data:
-  clearml_logs:
+
+networks:
+  edge-ai-network:
+    name: edge-ai-network
+    driver: bridge
