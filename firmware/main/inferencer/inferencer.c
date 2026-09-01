@@ -83,8 +83,8 @@ static const uint8_t* fetch_model_cbor(uint32_t model_id, size_t *out_len, bool 
     global_mqtt_client->publish(global_mqtt_client, fetch_topic, &dummy, 0, 1, 0);
     ESP_LOGI(TAG, "published fetch trigger request for model %u", (unsigned int)model_id);
     
-    // wait with timeout (5000 ms) for MQTT download response
-    if (xSemaphoreTake(mqtt_download_sem, pdMS_TO_TICKS(5000)) == pdTRUE && downloaded_cbor_payload != NULL) {
+    // wait with timeout (10000 ms) for MQTT download response
+    if (xSemaphoreTake(mqtt_download_sem, pdMS_TO_TICKS(10000)) == pdTRUE && downloaded_cbor_payload != NULL) {
         ESP_LOGI(TAG, "successfully downloaded submodel %u from backend", (unsigned int)model_id);
         
         // save to SD storage cache
@@ -138,6 +138,16 @@ static bool load_model_package(const uint8_t *cbor_data, size_t cbor_len, uint32
         if (free_cbor) free((void*)cbor_data);
         return false;
     }
+
+    if (ensemble.submodel_cache.count > 0) {
+        ensemble.submodel_cache.items[0].model.config.model_id = model_id;
+        ensemble.submodel_cache.items[0].model.config.archetype = ARCHETYPE_AUTOENCODER;
+        ensemble.submodel_cache.items[0].model.config.temporal_depth = ae_pkg->AutoencoderModelPackage_tsteps;
+        ensemble.submodel_cache.items[0].model.config.frequency_bins = ae_pkg->AutoencoderModelPackage_accel_bins + ae_pkg->AutoencoderModelPackage_gyro_bins;
+        ensemble.submodel_cache.items[0].model.config.anomaly_threshold = ae_pkg->AutoencoderModelPackage_limit;
+        ensemble.submodel_cache.items[0].model.config.loss_mode = (LossMode_t)ae_pkg->AutoencoderModelPackage_loss.LossMode_choice;
+        ensemble.submodel_cache.items[0].model.config.skip_amount = ae_pkg->AutoencoderModelPackage_skip_present ? ae_pkg->AutoencoderModelPackage_skip.AutoencoderModelPackage_skip : 1;
+    }
     
     if (free_cbor) free((void*)cbor_data);
     ESP_LOGI(TAG, "successfully loaded and cached submodel %u into memory arena", (unsigned int)model_id);
@@ -186,22 +196,24 @@ static void compute_signal_features(const buffer_slot_t *slot, float *accel_mag,
 }
 
 // loop over spectrogram frames, run the ensemble routing, and run submodel inferences
-static void run_ensemble_inference(buffer_slot_t *slot, const float *accel_spec, const float *gyro_spec) {
+static void run_ensemble_inference(buffer_slot_t *slot, const float *accel_spec, const float *gyro_spec, float *combined_spec) {
     float accel_pooled[128];
     float gyro_pooled[128];
-    float concatenated_slice[DEFAULT_RAW_BINS];
     
     uint32_t active_router_id = ensemble.router_model_loaded ? ensemble.router_model.config.model_id : 0;
     uint32_t active_memory_id = ensemble.memory_model_loaded ? ensemble.memory_model.config.model_id : 0;
     
-    // 1. Run memory backbone step-by-step for all frames to propagate recurrent state
-    if (ensemble.memory_model_loaded) {
-        for (int t = 0; t < SPECTROGRAM_FRAMES; t++) {
-            pool_1d_max_pow2(&accel_spec[t * SPECTROGRAM_BINS], 128, accel_pooled, 128);
-            pool_1d_max_pow2(&gyro_spec[t * SPECTROGRAM_BINS], 128, gyro_pooled, 128);
-            memcpy(concatenated_slice, accel_pooled, 128 * sizeof(float));
-            memcpy(concatenated_slice + 128, gyro_pooled, 128 * sizeof(float));
-            model_ensemble_inf_memory(&ensemble, concatenated_slice);
+    // 1. Build log-scaled combined 256-bin spectrogram matrix for the segment
+    for (int t = 0; t < SPECTROGRAM_FRAMES; t++) {
+        pool_1d_max_pow2(&accel_spec[t * SPECTROGRAM_BINS], 128, accel_pooled, 128);
+        pool_1d_max_pow2(&gyro_spec[t * SPECTROGRAM_BINS], 128, gyro_pooled, 128);
+        
+        float* slice = &combined_spec[t * DEFAULT_RAW_BINS];
+        dsp_fast_log1p_vec(accel_pooled, slice, 128);
+        dsp_fast_log1p_vec(gyro_pooled, slice + 128, 128);
+        
+        if (ensemble.memory_model_loaded) {
+            model_ensemble_inf_memory(&ensemble, slice);
         }
     }
     
@@ -211,36 +223,51 @@ static void run_ensemble_inference(buffer_slot_t *slot, const float *accel_spec,
     bool router_anomaly = false;
     
     if (ensemble.router_model_loaded) {
-        bool router_ok = model_ensemble_inf_router(&ensemble, &target_submodel, &already_loaded, &router_anomaly);
+        ESP_LOGI(TAG, "Evaluating router model %u...", (unsigned int)active_router_id);
+        bool router_ok = model_ensemble_inf_router(&ensemble, combined_spec, SPECTROGRAM_FRAMES, &target_submodel, &already_loaded, &router_anomaly);
         if (!router_ok) {
             ESP_LOGE(TAG, "Router model invocation failed");
+            slot->is_inferenced = false;
+            global_last_segment_id = slot->segment_id;
             return;
         }
+        ESP_LOGI(TAG, "Router resolved target submodel %u (already_loaded: %d, router_anomaly: %d)", 
+                 (unsigned int)target_submodel, already_loaded, router_anomaly);
         
         float max_anomaly_score = 0.0f;
         bool is_any_anomaly = false;
         uint32_t resolved_submodel_id = 0;
         
-        if (router_anomaly) {
+        if (router_anomaly || target_submodel == 0) {
             max_anomaly_score = 1.0f;
             is_any_anomaly = true;
             resolved_submodel_id = 0;
-            ESP_LOGW(TAG, "Ensemble router failed to match any submodel. Classified as Router Anomaly!");
+            ESP_LOGW(TAG, "Ensemble router resolved no submodel (ID 0). Classified as Router Anomaly!");
         } else {
             resolved_submodel_id = target_submodel;
             
             if (!already_loaded) {
                 if (!fetch_and_load_submodel(target_submodel)) {
-                    ESP_LOGE(TAG, "Failed to load submodel %u from storage/cloud", (unsigned int)target_submodel);
+                    ESP_LOGW(TAG, "Submodel %u not available, marking segment un-inferenced", (unsigned int)target_submodel);
+                    slot->is_inferenced = false;
+                    global_last_segment_id = slot->segment_id;
                     return;
                 }
             }
             
+            if (ensemble.submodel_cache.count == 0) {
+                ESP_LOGE(TAG, "Submodel cache is empty after resolution");
+                slot->is_inferenced = false;
+                global_last_segment_id = slot->segment_id;
+                return;
+            }
+            
             uint32_t skip_amt = ensemble.submodel_cache.items[0].model.config.skip_amount;
+            if (skip_amt == 0) skip_amt = 1;
             float score = 0.0f;
             bool is_anom = false;
             
-            bool ae_ok = model_ensemble_inf_ae(&ensemble, &score, &is_anom, SPECTROGRAM_FRAMES, skip_amt);
+            bool ae_ok = model_ensemble_inf_ae(&ensemble, combined_spec, SPECTROGRAM_FRAMES, &score, &is_anom, skip_amt);
             if (ae_ok) {
                 max_anomaly_score = score;
                 is_any_anomaly = is_anom;
@@ -258,14 +285,27 @@ static void run_ensemble_inference(buffer_slot_t *slot, const float *accel_spec,
         ESP_LOGI(TAG, "inference completed for segment %u. Max score: %f, Anomaly: %d", 
                  (unsigned int)slot->segment_id, max_anomaly_score, is_any_anomaly);
     } else {
+        // If router is not present, mark segment as processed without anomaly
+        slot->router_model_id = 0;
+        slot->memory_model_id = 0;
+        slot->active_submodel_id = 0;
+        slot->anomaly_score = 0.0f;
+        slot->is_anomaly = false;
         slot->is_inferenced = false;
         global_last_segment_id = slot->segment_id;
-        ESP_LOGI(TAG, "warmup data collection phase (no models loaded yet). segment %u ready for telemetry uplink", (unsigned int)slot->segment_id);
     }
 }
 
 static void inferencer_task(void *pvParameters) {
     quad_buffer_t *qb = (quad_buffer_t *)pvParameters;
+    
+    // create queue for ready-for-inference slots
+    ready_inf_queue = xQueueCreate(4, sizeof(int));
+    if (!ready_inf_queue) {
+        ESP_LOGE(TAG, "failed to create inferencer input queue");
+        vTaskDelete(NULL);
+        return;
+    }
     
     // allocate semaphore for download sync
     mqtt_download_sem = xSemaphoreCreateBinary();
@@ -289,8 +329,9 @@ static void inferencer_task(void *pvParameters) {
     // spectrograms ((total samples - window size)/Hop) + 1
     float *accel_spec = malloc(sizeof(float) * SPECTROGRAM_FRAMES * SPECTROGRAM_BINS);
     float *gyro_spec = malloc(sizeof(float) * SPECTROGRAM_FRAMES * SPECTROGRAM_BINS);
+    float *combined_spec = malloc(sizeof(float) * SPECTROGRAM_FRAMES * DEFAULT_RAW_BINS);
     
-    if (!accel_mag || !gyro_mag || !accel_spec || !gyro_spec) {
+    if (!accel_mag || !gyro_mag || !accel_spec || !gyro_spec || !combined_spec) {
         ESP_LOGE(TAG, "out of memory for dsp temp buffers");
         vTaskDelete(NULL);
         return;
@@ -312,14 +353,18 @@ static void inferencer_task(void *pvParameters) {
 #if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
             int64_t inf_start = esp_timer_get_time();
 #endif
+            ESP_LOGI(TAG, "before compute_signal_features");
             compute_signal_features(slot, accel_mag, gyro_mag, accel_spec, gyro_spec);
-            run_ensemble_inference(slot, accel_spec, gyro_spec);
+            ESP_LOGI(TAG, "before run_ensemble_inference");
+            run_ensemble_inference(slot, accel_spec, gyro_spec, combined_spec);
 #if defined(CONFIG_RECORD_INFERENCE_TIME) || defined(RECORD_INFERENCE_TIME)
             slot->inference_time_ms = (uint32_t)((esp_timer_get_time() - inf_start) / 1000);
 #endif
-            
-            // lock slot and change flags
+            ESP_LOGI(TAG, "slot->flags before lock: 0x%02X", slot->flags);
+            ESP_LOGI(TAG, "before lock");
+            // lock slot and change flags()
             quad_buffer_lock(slot);
+            ESP_LOGI(TAG, "in lock");
             slot->flags &= ~BUF_FLAG_READY_INF; // clear inferencing flag
             slot->flags &= ~BUF_FLAG_FORCE_INF; // clear force inf flag
             slot->flags |= BUF_FLAG_READY_SEND;  // flag uploader
@@ -335,7 +380,7 @@ void inferencer_start(quad_buffer_t *qb) {
     xTaskCreatePinnedToCore(
         inferencer_task,
         "inferencer",
-        16384,
+        32768,
         qb,
         4,
         &inferencer_task_handle,

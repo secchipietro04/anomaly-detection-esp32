@@ -201,6 +201,7 @@ static void ensemble_cb(const uint8_t *data, size_t len, void *user_ctx) {
     size_t decoded = 0;
     int res = cbor_decode_Payload(data, len, &payload, &decoded);
     if (res == 0) {
+        model_ensemble_lock(&ensemble);
         // user sent an ensemble config update (routing table + warmups)
         if (payload.Payload_choice == Payload_EnsembleConfig_m_c) {
             struct EnsembleConfig *cfg = &payload.Payload_EnsembleConfig_m;
@@ -288,18 +289,35 @@ static void ensemble_cb(const uint8_t *data, size_t len, void *user_ctx) {
                 ensemble.state_dim = m_pkg->MemoryModelPackage_state;
                 
             } else if (pkg->ModelPackage_choice == AutoencoderModelPackage_m_c) {
-                // autoencoder submodel package. base contains model ID and data buffer to save
+                // autoencoder submodel package. load directly into RAM cache
                 struct AutoencoderModelPackage *ae_pkg = &pkg->AutoencoderModelPackage_m;
                 struct BaseModelPackage_r *base = &ae_pkg->AutoencoderModelPackage_BaseModelPackage_m;
                 
-                char path[64];
-                snprintf(path, sizeof(path), "/sdcard/models/model_%u.bin", (unsigned int)base->BaseModelPackage_m_id);
-                if (!sd_card_save_file(path, base->BaseModelPackage_data.value, base->BaseModelPackage_data.len)) {
-                    ESP_LOGE(TAG, "failed to save submodel %u to SD", (unsigned int)base->BaseModelPackage_m_id);
-                    global_sd_enabled = false;
+                int ret = model_ensemble_load_submodel(&ensemble, base->BaseModelPackage_data.value, base->BaseModelPackage_data.len);
+                if (ret == MODEL_SUCCESS && ensemble.submodel_cache.count > 0) {
+                    ensemble.submodel_cache.items[0].model.config.model_id = base->BaseModelPackage_m_id;
+                    ensemble.submodel_cache.items[0].model.config.archetype = ARCHETYPE_AUTOENCODER;
+                    ensemble.submodel_cache.items[0].model.config.temporal_depth = ae_pkg->AutoencoderModelPackage_tsteps;
+                    ensemble.submodel_cache.items[0].model.config.frequency_bins = ae_pkg->AutoencoderModelPackage_accel_bins + ae_pkg->AutoencoderModelPackage_gyro_bins;
+                    ensemble.submodel_cache.items[0].model.config.anomaly_threshold = ae_pkg->AutoencoderModelPackage_limit;
+                    ensemble.submodel_cache.items[0].model.config.loss_mode = (LossMode_t)ae_pkg->AutoencoderModelPackage_loss.LossMode_choice;
+                    ensemble.submodel_cache.items[0].model.config.skip_amount = ae_pkg->AutoencoderModelPackage_skip_present ? ae_pkg->AutoencoderModelPackage_skip.AutoencoderModelPackage_skip : 1;
+                    ESP_LOGI(TAG, "Loaded autoencoder submodel %u into RAM cache", (unsigned int)base->BaseModelPackage_m_id);
+                } else {
+                    ESP_LOGE(TAG, "Failed to load submodel %u into RAM cache (ret: %d)", (unsigned int)base->BaseModelPackage_m_id, ret);
+                }
+                
+                if (global_sd_enabled) {
+                    char path[64];
+                    snprintf(path, sizeof(path), "/sdcard/models/model_%u.bin", (unsigned int)base->BaseModelPackage_m_id);
+                    if (!sd_card_save_file(path, base->BaseModelPackage_data.value, base->BaseModelPackage_data.len)) {
+                        global_sd_enabled = false;
+                        ESP_LOGW(TAG, "SD card write failed, disabling SD card caching.");
+                    }
                 }
             }
         }
+        model_ensemble_unlock(&ensemble);
     }
 }
 

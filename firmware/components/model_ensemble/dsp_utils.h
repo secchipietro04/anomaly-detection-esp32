@@ -16,6 +16,11 @@ extern "C" {
  */
 void pool_1d_max_pow2(const float* in, size_t in_len, float* out, size_t out_len);
 
+/**
+ * @brief vectorized log1p ln(1+x) transform
+ */
+void dsp_fast_log1p_vec(const float* src, float* dst, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

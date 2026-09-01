@@ -18,6 +18,10 @@ typedef struct {
     bool is_connected;
     mqtt_route_t routes[MAX_TOPIC_ROUTES];
     int route_count;
+    char current_topic[128];
+    uint8_t *msg_buffer;
+    size_t msg_received_len;
+    size_t msg_total_len;
 } mqtt_wrapper_impl_t;
 
 static const char *TAG = "MQTT_WRAPPER";
@@ -127,6 +131,10 @@ static void destroy_impl(mqtt_wrapper_t *self) {
     if (!self) return;
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)self;
 
+    if (impl->msg_buffer) {
+        free(impl->msg_buffer);
+        impl->msg_buffer = NULL;
+    }
     if (impl->client) {
         esp_mqtt_client_stop(impl->client);
         esp_mqtt_client_destroy(impl->client);
@@ -152,20 +160,50 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         case MQTT_EVENT_DISCONNECTED:
             impl->is_connected = false;
             ESP_LOGW(TAG, "MQTT Disconnected");
+            if (impl->msg_buffer) {
+                free(impl->msg_buffer);
+                impl->msg_buffer = NULL;
+            }
+            impl->msg_received_len = 0;
+            impl->msg_total_len = 0;
             break;
 
         case MQTT_EVENT_DATA:
-            for (int i = 0; i < impl->route_count; i++) {
-                if (mqtt_topic_match(impl->routes[i].topic, event->topic, event->topic_len)) {
-                    if (impl->routes[i].callback) {
-                        impl->routes[i].callback(
-                            (const uint8_t *)event->data,
-                            (size_t)event->data_len,
-                            impl->routes[i].user_ctx
-                        );
-                    }
-                    break;
+            if (event->current_data_offset == 0) {
+                if (event->topic && event->topic_len > 0 && event->topic_len < sizeof(impl->current_topic)) {
+                    memcpy(impl->current_topic, event->topic, event->topic_len);
+                    impl->current_topic[event->topic_len] = '\0';
                 }
+                impl->msg_total_len = event->total_data_len;
+                impl->msg_received_len = 0;
+                if (impl->msg_buffer) {
+                    free(impl->msg_buffer);
+                    impl->msg_buffer = NULL;
+                }
+                impl->msg_buffer = (uint8_t *)malloc(event->total_data_len);
+            }
+
+            if (impl->msg_buffer && (impl->msg_received_len + event->data_len <= impl->msg_total_len)) {
+                memcpy(impl->msg_buffer + event->current_data_offset, event->data, event->data_len);
+                impl->msg_received_len += event->data_len;
+            }
+
+            if (impl->msg_buffer && (impl->msg_received_len >= impl->msg_total_len)) {
+                for (int i = 0; i < impl->route_count; i++) {
+                    if (mqtt_topic_match(impl->routes[i].topic, impl->current_topic, strlen(impl->current_topic))) {
+                        if (impl->routes[i].callback) {
+                            impl->routes[i].callback(
+                                impl->msg_buffer,
+                                impl->msg_total_len,
+                                impl->routes[i].user_ctx
+                            );
+                        }
+                    }
+                }
+                free(impl->msg_buffer);
+                impl->msg_buffer = NULL;
+                impl->msg_received_len = 0;
+                impl->msg_total_len = 0;
             }
             break;
 
@@ -178,48 +216,43 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-mqtt_wrapper_t* mqtt_wrapper_create(const mqtt_wrapper_config_t *config) {
-    if (!config || !config->broker_uri) {
-        ESP_LOGE(TAG, "Invalid configuration");
-        return NULL;
-    }
+mqtt_wrapper_t *mqtt_wrapper_create(const mqtt_wrapper_config_t *config) {
+    if (!config || !config->broker_uri) return NULL;
 
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)calloc(1, sizeof(mqtt_wrapper_impl_t));
-    if (!impl) {
-        ESP_LOGE(TAG, "Memory allocation failed");
-        return NULL;
-    }
+    if (!impl) return NULL;
 
     impl->interface.is_connected = is_connected_impl;
-    impl->interface.subscribe    = subscribe_impl;
-    impl->interface.unsubscribe  = unsubscribe_impl;
-    impl->interface.publish      = publish_impl;
-    impl->interface.destroy      = destroy_impl;
+    impl->interface.subscribe = subscribe_impl;
+    impl->interface.unsubscribe = unsubscribe_impl;
+    impl->interface.publish = publish_impl;
+    impl->interface.destroy = destroy_impl;
+    impl->route_count = 0;
+    impl->msg_buffer = NULL;
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = config->broker_uri,
+        .broker = {
+            .address = {
+                .uri = config->broker_uri
+            }
+        },
+        .credentials = {
+            .client_id = config->client_id
+        },
+        .buffer = {
+            .size = 4096,
+            .out_size = 4096
+        }
     };
-
-    if (config->client_id) {
-        mqtt_cfg.credentials.client_id = config->client_id;
-    }
 
     impl->client = esp_mqtt_client_init(&mqtt_cfg);
     if (!impl->client) {
-        ESP_LOGE(TAG, "Failed to initialize MQTT client");
         free(impl);
         return NULL;
     }
 
-    esp_mqtt_client_register_event(impl->client, ESP_EVENT_ANY_ID, mqtt_event_handler, impl);
+    esp_mqtt_client_register_event(impl->client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, mqtt_event_handler, impl);
+    esp_mqtt_client_start(impl->client);
 
-    esp_err_t err = esp_mqtt_client_start(impl->client);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(err));
-        esp_mqtt_client_destroy(impl->client);
-        free(impl);
-        return NULL;
-    }
-
-    return &impl->interface;
+    return (mqtt_wrapper_t *)impl;
 }

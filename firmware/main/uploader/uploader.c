@@ -1,6 +1,7 @@
 #include "uploader.h"
 #include "cbor/gen/telemetry_encode.h"
 #include "cbor/gen/device_types.h"
+#include "cbor/cbor_buffer_sizes.h"
 #include "network/mqtt/mqtt.h"
 #include "esp_log.h"
 #include "freertos/task.h"
@@ -19,7 +20,7 @@ extern uint32_t global_stream_mode;
 extern uint32_t global_cadence;
 
 static bool serialize_and_publish_segment(buffer_slot_t *slot, int32_t reason) {
-    size_t max_cbor_len = 16 * 1024;
+    size_t max_cbor_len = CBOR_SEGMENT_MAX_ENCODED_LEN;
     uint8_t *buf = (uint8_t *)malloc(max_cbor_len);
     struct Segment *seg = (struct Segment *)malloc(sizeof(struct Segment));
     if (!buf || !seg) {

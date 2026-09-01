@@ -36,7 +36,7 @@ bool esp_fft_wrapper_stft(const float* input, size_t input_len, size_t window_si
     }
 
     size_t num_frames = (input_len - window_size) / hop_size + 1;
-    size_t freq_bins = fft_size / 2 + 1;
+    size_t freq_bins = fft_size / 2;
 
     // Allocate temporary window and complex FFT buffers
     float* window = (float*)malloc(window_size * sizeof(float));

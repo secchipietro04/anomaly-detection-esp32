@@ -46,8 +46,11 @@ namespace tflite {
 typedef struct ModelInstance {
     ModelConfig_t config;
     const uint8_t* model_data;  // Self-owned dynamically allocated copy of flatbuffer binary
+    void* model_data_raw;        // Raw unaligned allocation pointer
+    void* context;               // Pointer to ModelContext
     tflite::MicroInterpreter* interpreter;
     uint8_t* tensor_arena;
+    void* arena_raw;             // Raw unaligned arena pointer
     size_t arena_size;
     
     int (*init)(struct ModelInstance* self, const uint8_t* model_data, size_t model_size, size_t arena_size);
@@ -58,8 +61,11 @@ typedef struct ModelInstance {
 typedef struct ModelInstance {
     ModelConfig_t config;
     const uint8_t* model_data;  // Self-owned dynamically allocated copy of flatbuffer binary
+    void* model_data_raw;        // Raw unaligned allocation pointer
+    void* context;               // Pointer to ModelContext
     void* interpreter;
     uint8_t* tensor_arena;
+    void* arena_raw;             // Raw unaligned arena pointer
     size_t arena_size;
     
     int (*init)(struct ModelInstance* self, const uint8_t* model_data, size_t model_size, size_t arena_size);

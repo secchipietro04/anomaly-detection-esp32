@@ -28,11 +28,16 @@ typedef struct {
     uint32_t m_id;
 } route_entry_t;
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 typedef struct {
     uint32_t raw_bins;            // Input FFT width (default 256)
     uint32_t history_depth;        // Shared ring buffer size (N slices, default 16)
     uint32_t warmup_steps;         // Warmup period before alerts/scoring
     uint32_t warmup_steps_done;    // Uptime steps processed
+
+    SemaphoreHandle_t mutex;       // Mutex protecting concurrent cross-core access
 
     // Shared circular ring buffer wrapper
     ring_buffer_t ring_buffer;
@@ -63,6 +68,9 @@ typedef struct {
     size_t memory_arena_size;
     size_t submodel_arena_size;
 } model_ensemble_t;
+
+void model_ensemble_lock(model_ensemble_t* ensemble);
+void model_ensemble_unlock(model_ensemble_t* ensemble);
 
 /**
  * @brief Initialize the model ensemble configuration and allocate buffers.
@@ -128,34 +136,31 @@ int model_ensemble_load_submodel(model_ensemble_t* ensemble, const uint8_t* mode
  */
 void model_ensemble_set_cache_capacity(model_ensemble_t* ensemble, uint32_t capacity);
 
-/**
- * @brief Ingests an FFT slice and updates the recurrent backbone states.
- * @param ensemble Pointer to the model ensemble.
- * @param fft_raw Pointer to raw FFT slice (size raw_bins).
- * @return true on success, false on failure.
- */
 bool model_ensemble_inf_memory(model_ensemble_t* ensemble, const float* fft_raw);
 
 /**
- * @brief Runs the router model on the circular history buffer to choose the submodel.
+ * @brief Runs the router model on the linear spectrogram to choose the submodel.
  * @param ensemble Pointer to the model ensemble.
+ * @param spec Pointer to linear spectrogram matrix (num_frames * raw_bins floats).
+ * @param num_frames Total chronological frames in this segment.
  * @param out_target_submodel_id Pointer to output resolved submodel ID.
  * @param out_already_loaded Pointer to output boolean (true if submodel is currently cached in RAM).
  * @param out_is_anomaly Pointer to output boolean (true if router classification confidence is below threshold).
  * @return true on success, false on failure.
  */
-bool model_ensemble_inf_router(model_ensemble_t* ensemble, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_is_anomaly);
+bool model_ensemble_inf_router(model_ensemble_t* ensemble, const float* spec, uint32_t num_frames, uint32_t* out_target_submodel_id, bool* out_already_loaded, bool* out_is_anomaly);
 
 /**
- * @brief Runs the active autoencoder submodel on the circular buffer history.
+ * @brief Runs the active autoencoder submodel on the linear spectrogram.
  * @param ensemble Pointer to the model ensemble.
+ * @param spec Pointer to linear spectrogram matrix (num_frames * raw_bins floats).
+ * @param num_frames Total chronological frames in this segment.
  * @param out_anomaly_score Pointer to output anomaly score (averaged across evaluated windows).
  * @param out_is_anomaly Pointer to output boolean (true if any window exceeds threshold).
- * @param num_frames Total chronological frames processed in this segment.
  * @param skip_amount Number of frames to skip between evaluation windows.
  * @return true on success, false on failure.
  */
-bool model_ensemble_inf_ae(model_ensemble_t* ensemble, float* out_anomaly_score, bool* out_is_anomaly, uint32_t num_frames, uint32_t skip_amount);
+bool model_ensemble_inf_ae(model_ensemble_t* ensemble, const float* spec, uint32_t num_frames, float* out_anomaly_score, bool* out_is_anomaly, uint32_t skip_amount);
 
 #ifdef __cplusplus
 }
