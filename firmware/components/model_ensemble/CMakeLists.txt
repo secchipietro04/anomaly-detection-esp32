@@ -1,7 +1,6 @@
 if(CONFIG_MODEL_ENSELE_ENABLED OR CONFIG_MODEL_ENSEMBLE_ENABLED)
     set(srcs 
         "model_ensemble.c"
-        "ring_buffer.c"
         "dsp_utils.c"
         "loss_utils.c"
         "model_cache.c"

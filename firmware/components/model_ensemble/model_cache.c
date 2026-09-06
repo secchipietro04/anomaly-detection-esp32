@@ -38,8 +38,14 @@ int model_cache_insert(model_cache_t* cache, const uint8_t* model_data, size_t m
     ModelInstance_t new_model;
     memset(&new_model, 0, sizeof(ModelInstance_t));
 
-    // Initialize the model in a temporary instance first
+    // Initialize the model in a temporary instance first (auto-shrink if out of memory)
     int init_ret = model_instance_init(&new_model, model_data, model_size, cache->arena_size);
+    while (init_ret == MODEL_ERR_NO_MEM && cache->count > 0) {
+        // Evict oldest cached model to free heap memory for the new model
+        model_instance_deinit(&cache->items[cache->count - 1].model);
+        cache->count--;
+        init_ret = model_instance_init(&new_model, model_data, model_size, cache->arena_size);
+    }
     if (init_ret != MODEL_SUCCESS) {
         return init_ret;
     }

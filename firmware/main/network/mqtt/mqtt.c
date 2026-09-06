@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "mqtt_client.h"
 
 #define MAX_TOPIC_ROUTES 32
@@ -132,7 +133,7 @@ static void destroy_impl(mqtt_wrapper_t *self) {
     mqtt_wrapper_impl_t *impl = (mqtt_wrapper_impl_t *)self;
 
     if (impl->msg_buffer) {
-        free(impl->msg_buffer);
+        heap_caps_free(impl->msg_buffer);
         impl->msg_buffer = NULL;
     }
     if (impl->client) {
@@ -161,7 +162,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             impl->is_connected = false;
             ESP_LOGW(TAG, "MQTT Disconnected");
             if (impl->msg_buffer) {
-                free(impl->msg_buffer);
+                heap_caps_free(impl->msg_buffer);
                 impl->msg_buffer = NULL;
             }
             impl->msg_received_len = 0;
@@ -177,10 +178,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 impl->msg_total_len = event->total_data_len;
                 impl->msg_received_len = 0;
                 if (impl->msg_buffer) {
-                    free(impl->msg_buffer);
+                    heap_caps_free(impl->msg_buffer);
                     impl->msg_buffer = NULL;
                 }
-                impl->msg_buffer = (uint8_t *)malloc(event->total_data_len);
+                impl->msg_buffer = (uint8_t *)heap_caps_malloc(event->total_data_len, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+                if (!impl->msg_buffer) {
+                    impl->msg_buffer = (uint8_t *)malloc(event->total_data_len);
+                }
+                if (!impl->msg_buffer) {
+                    ESP_LOGE(TAG, "Failed to allocate MQTT buffer (%zu bytes)", (size_t)event->total_data_len);
+                }
             }
 
             if (impl->msg_buffer && (impl->msg_received_len + event->data_len <= impl->msg_total_len)) {
@@ -200,7 +207,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                         }
                     }
                 }
-                free(impl->msg_buffer);
+                heap_caps_free(impl->msg_buffer);
                 impl->msg_buffer = NULL;
                 impl->msg_received_len = 0;
                 impl->msg_total_len = 0;

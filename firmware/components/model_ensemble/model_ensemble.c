@@ -30,15 +30,11 @@ bool model_ensemble_init(model_ensemble_t* ensemble, uint32_t raw_bins, uint32_t
     ensemble->history_depth = history_depth;
     ensemble->warmup_steps = warmup_steps;
 
-    if (!ring_buffer_init(&ensemble->ring_buffer, history_depth, raw_bins)) {
-        return false;
-    }
-
     ensemble->router_arena_size = 64 * 1024;
     ensemble->memory_arena_size = 64 * 1024;
     ensemble->submodel_arena_size = 128 * 1024;
 
-    model_cache_init(&ensemble->submodel_cache, DEFAULT_SUBMODEL_CACHE_CAPACITY, ensemble->submodel_arena_size);
+    model_cache_init(&ensemble->submodel_cache, MAX_CACHE_CAPACITY, ensemble->submodel_arena_size);
 
     return true;
 }
@@ -57,7 +53,6 @@ void model_ensemble_deinit(model_ensemble_t* ensemble) {
     }
 
     model_cache_clear(&ensemble->submodel_cache);
-    ring_buffer_free(&ensemble->ring_buffer);
 
     if (ensemble->h_state) {
         free(ensemble->h_state);
@@ -78,7 +73,7 @@ void model_ensemble_deinit(model_ensemble_t* ensemble) {
 void ensemble_reset_state(model_ensemble_t* ensemble) {
     if (!ensemble) return;
 
-    ring_buffer_clear(&ensemble->ring_buffer);
+    model_ensemble_lock(ensemble);
 
     if (ensemble->h_state && ensemble->state_dim > 0) {
         memset(ensemble->h_state, 0, ensemble->state_dim * sizeof(float));
@@ -88,6 +83,9 @@ void ensemble_reset_state(model_ensemble_t* ensemble) {
     }
 
     ensemble->warmup_steps_done = 0;
+
+    model_ensemble_unlock(ensemble);
+
     ESP_LOGI(TAG, "Ensemble execution state reset");
 }
 
@@ -401,8 +399,8 @@ bool model_ensemble_inf_ae(model_ensemble_t* ensemble, const float* spec, uint32
 
         // Get the target slice for reconstruction loss calculation
         const float* target_raw = spec + ((t + depth - 1) * ensemble->raw_bins);
-        float target_processed[256];
-        size_t safe_bins = bins > 256 ? 256 : bins;
+        float target_processed[512];
+        size_t safe_bins = bins > 512 ? 512 : bins;
         if (bins < ensemble->raw_bins) {
             pool_1d_max_pow2(target_raw, ensemble->raw_bins, target_processed, bins);
         } else {

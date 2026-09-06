@@ -17,8 +17,10 @@ float compute_reconstruction_loss(const float* target, const float* reconstructi
 
         case LOSS_MODE_LINEAR_MSE:
             for (uint32_t i = 0; i < bins; i++) {
-                float lin_target = expm1f(target[i]);
-                float lin_recon = expm1f(reconstruction[i]);
+                float t_val = target[i] > 20.0f ? 20.0f : (target[i] < -20.0f ? -20.0f : target[i]);
+                float r_val = reconstruction[i] > 20.0f ? 20.0f : (reconstruction[i] < -20.0f ? -20.0f : reconstruction[i]);
+                float lin_target = expm1f(t_val);
+                float lin_recon = expm1f(r_val);
                 float diff = lin_target - lin_recon;
                 loss_sum += diff * diff;
             }

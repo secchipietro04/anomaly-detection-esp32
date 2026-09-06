@@ -2,7 +2,6 @@
 #define MODEL_ENSEMBLE_H
 
 #include "base_model.h"
-#include "ring_buffer.h"
 #include "model_cache.h"
 
 #ifdef __cplusplus
@@ -38,9 +37,6 @@ typedef struct {
     uint32_t warmup_steps_done;    // Uptime steps processed
 
     SemaphoreHandle_t mutex;       // Mutex protecting concurrent cross-core access
-
-    // Shared circular ring buffer wrapper
-    ring_buffer_t ring_buffer;
 
     // State dimension configuration
     uint32_t state_dim;            // Size of h_state and c_state recurrent vectors

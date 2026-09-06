@@ -203,6 +203,11 @@ static void run_ensemble_inference(buffer_slot_t *slot, const float *accel_spec,
     uint32_t active_router_id = ensemble.router_model_loaded ? ensemble.router_model.config.model_id : 0;
     uint32_t active_memory_id = ensemble.memory_model_loaded ? ensemble.memory_model.config.model_id : 0;
     
+    // Reset recurrent memory state at the beginning of each segment
+    if (ensemble.memory_model_loaded) {
+        ensemble_reset_state(&ensemble);
+    }
+    
     // 1. Build log-scaled combined 256-bin spectrogram matrix for the segment
     for (int t = 0; t < SPECTROGRAM_FRAMES; t++) {
         pool_1d_max_pow2(&accel_spec[t * SPECTROGRAM_BINS], 128, accel_pooled, 128);
