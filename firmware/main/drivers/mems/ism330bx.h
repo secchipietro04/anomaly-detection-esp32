@@ -118,10 +118,10 @@ typedef struct {
     .hw =                                            \
         {                                            \
             .host_id = SPI3_HOST,                    \
-            .mosi_pin = 9,                           \
-            .miso_pin = 11,                          \
-            .sclk_pin = 10,                          \
-            .cs_pin = 12,                            \
+            .mosi_pin = 5,                           \
+            .miso_pin = 4,                           \
+            .sclk_pin = 6,                           \
+            .cs_pin = 7,                             \
             .clock_speed_hz = 10000000, /* 10 MHz */ \
         },                                           \
     .sensor = {                                      \

@@ -77,6 +77,8 @@ idf_component_register(
         "dump_reader/dump_reader.c"
         "mqtt_handlers/mqtt_handlers.c"
         "drivers/sd_card/sd_card.c"
+        "drivers/sd_card/sd_card_sdio.c"
+        "drivers/sd_card/sd_card_spi.c"
         "drivers/mems/ism330bx.c"
         "network/mqtt/mqtt.c"
         "network/wifi/wifi.c"
@@ -101,6 +103,7 @@ idf_component_register(
         "network/wifi"
     REQUIRES
         driver
+        esp_driver_sdmmc
         esp_system
         esp_netif
         esp_wifi
