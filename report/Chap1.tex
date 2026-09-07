@@ -1,1 +1,74 @@
 \chapter{Analisi del Contesto e Requisiti}
+
+\section{Cinematica delle Vibrazioni Meccaniche}
+\subsection{Origine delle Vibrazioni}
+In un macchinario le vibrazioni vengono principalmente da organi rotanti, quali mandrini, motori e pompe. 
+I guasti di un organo rotante ne cambiano la sequenza caratteristica nei seguenti modi:
+\begin{itemize}
+	\item \textbf{Sbilanciamento dell'albero rotante} causato spesso da uno squilibrio di massa, genera un picco alla frequenza di rotazione dell'organo.
+	\item \textbf{Disallineamento angolare o parallelo} produce armoniche al doppio della frequenza di rotazione.
+	\item \textbf{Difetti nei cuscinetti} producono frequenze di impatto caratteristiche alla loro velocità di rotazione calcolabili.
+\end{itemize}
+Per raccogliere questi dati vibrazionali si ha bisogno di un sensore; i primi sensori vibrazionali erano trasduttori piezoelettrici analogici, che sono costosi, ingombranti e necessitano di un circuito analogico per la lettura dei dati. Con l'Industria 4.0 sono nati i primi sensori MEMS (micro-electromechanical systems), circuiti integrati digitali che sono economici, sono poco ingombranti, non hanno bisogno di schermature dei cavi per la natura digitale del segnale, e molti permettono anche la raccolta di dati in più di un asse; il sensore usato nel progetto è a 6 assi (3 per l'accelerazione e 3 per il giroscopio) \cite{ism330bx_datasheet}.
+
+\subsection{Limiti dell'analisi nel dominio del tempo}
+Ci sono vari metodi statistici nel dominio del tempo per trovare anomalie nelle vibrazioni come RMS, valore di picco, fattore di cresta o curtosi, tuttavia questi metodi non sono efficaci a localizzare guasti a bassa energia in fase nascente. Per questo passiamo al dominio delle frequenze usando trasformazioni di Fourier a breve termine (STFT) \cite{lyons2010dsp}, che consentono di osservare il cambio delle frequenze caratteristiche al variare del tempo.
+
+    \begin{figure}[H]
+	\centering
+	\begin{subfigure}[b]{\linewidth}
+		\centering
+		\includegraphics[width=0.9\linewidth]{assets/images/time_signal_anomaly}
+		\caption{Segnale con anomalia nel dominio del tempo}
+		\label{fig:timesignalanomaly}
+	\end{subfigure}
+	
+	\vspace{0.1cm} 	
+	\begin{subfigure}[b]{\linewidth}
+		\centering
+		\includegraphics[width=0.9\linewidth]{assets/images/stft_anomaly}
+		\caption{Segnale con anomalia nel dominio delle frequenze STFT}
+		\label{fig:stftanomaly}
+	\end{subfigure}
+	\caption{Confronto tra l'analisi temporale e la trasformata STFT in presenza di anomalia.}
+	\label{fig:confronto_tempo_stft}
+\end{figure}
+
+\section{Anomaly Detection su un singolo regime}
+L'anomaly detection ha un problema fondamentale nello sviluppo, ovvero l'asimmetria dei dati: i macchinari funzionano senza anomalie per la maggior parte della loro vita, questo implica che durante lo sviluppo di meccanismi di anomaly detection non si hanno esempi di dati anomali, quindi bisogna basarsi completamente su dati non anomali senza dati etichettati di anomalie.
+Per risolvere questo problema si usano modelli AI chiamati autoencoder, usando apprendimento non supervisionato. Durante la fase di apprendimento si danno al modello solo dati non anomali e gli si chiede di ricostruirli tali e quali; tuttavia se ne limita nell'architettura la potenza espressiva negli strati centrali. In questo modo impara a ricostruire segnali specifici, quelli non anomali, e se dopo l'apprendimento si prova a fornirgli dati anomali, esso proverà a ricostruirli cercando di farli ricadere nella struttura dei dati non anomali. Per quantificare l'anomalia si controlla la differenza tra l'input e l'output: se i dati in uscita sono molto diversi dai dati in ingresso significa che quei dati il modello non li ha visti durante l'apprendimento.
+
+
+\section{Anomaly Detection a Regimi Multipli}
+Molti macchinari hanno più di un regime, come una pompa che varia velocità in base alla pressione sulla linea: in questi casi, se provassimo ad usare modelli mono-regime per poter riconoscere regimi diversi, avremmo bisogno di modelli molto più grandi, pesanti e meno efficaci.
+In questa tesi si usa un'architettura multimodale, ovvero al posto di usare un singolo modello molto pesante o impossibile da caricare su un microcontrollore, se ne usano molti piccoli specializzati sul loro regime, con un modello router che decide quale sottomodello deve riconoscere l'anomalia.
+
+ \section{Vincoli Computazionali}
+ Il calcolo delle anomalie avviene su microcontrollori con ridotta potenza di calcolo (dual-core a 240 MHz), che eseguono un sistema operativo real-time (FreeRTOS), molto più leggero rispetto a un sistema operativo desktop. L'assenza di MMU implica che un crash di memoria blocchi l'intero sistema obbligandolo al riavvio, e la memoria a disposizione è limitata (all'incirca 8 MB con PSRAM); questo rende impossibile usare le architetture neurali comunemente impiegate su server, imponendo di comprimere i modelli per poter funzionare nei vincoli del dispositivo.
+ L'ottimizzazione è il pilastro principale del sistema. Per l'inferenza dei modelli si usa TensorFlow Lite for Microcontrollers (TFLite Micro) \cite{david2021tflitemicro,espressif_esp_tflite_micro}, che consente di includere nel compilato unicamente il sottoinsieme strettamente necessario degli operatori Keras/TensorFlow. Inoltre, il microcontrollore scelto (ESP32-S3) dispone di estensioni vettoriali SIMD e di pipeline DSP (Digital Signal Processing) ottimizzate tramite librerie fornite dal produttore.
+ Come detto precedentemente, forniamo segnali nel dominio delle frequenze ai modelli, perché più espressivi.
+
+
+\section{Specifica dei Requisiti di Sistema}
+
+\subsection*{Requisiti Funzionali}
+\begin{itemize}
+	\item \textbf{Acquisizione Continua}: campionamento a 6 assi (accelerometro e giroscopio) con garanzia di zero packet drop tramite FIFO SPI e interrupt hardware.
+	\item \textbf{Estrazione Spettrale STFT}: calcolo locale di spettrogrammi (finestra Hann, overlap 75\%, compressione logaritmica) direttamente sul microcontrollore.
+	\item \textbf{Inferenza Multi-Modello (Ensemble)}: classificazione del regime operativo tramite modello Router e selezione dinamica dell'Autoencoder dedicato, con eventuale supporto a modelli con memoria temporale.
+	\item \textbf{Rilevamento e Notifica delle Anomalie}: calcolo del punteggio di ricostruzione (MSE lineare o logaritmico), confronto con soglia configurabile e notifica dell'anomalia.
+	\item \textbf{Gestione Telemetria e Connettività MQTT}: trasmissione asincrona di messaggi telemetrici (campioni grezzi, spettrogrammi, esiti di inferenza) verso il broker MQTT centrale.
+	\item \textbf{Archiviazione di Sicurezza Locale}: salvataggio continuo o su evento anomalo dei segmenti vibrazionali su memoria microSD per tollerare cadute della connettività di rete.
+	\item \textbf{Aggiornamento OTA dei Modelli}: ricezione e installazione di nuovi modelli neurali e configurazioni distribuiti dal backend senza richiedere riprogrammazione fisica del chip.
+	\item \textbf{Pipeline MLOps Centralizzata}: ingestione continua dei dati, archiviazione su database, monitoraggio visivo e ricerca automatizzata delle architetture neurali.
+\end{itemize}
+
+\subsection*{Requisiti Non Funzionali}
+\begin{itemize}
+	\item \textbf{Determinismo Temporale}: la quantità di dati calcolati (acquisizione dati + STFT + Router + Autoencoder) deve essere in media uguale alla quantità di dati generati dal sensore MEMS.
+	\item \textbf{Vincoli di Memoria e Allocazione Statica}: il firmware deve rispettare i vincoli di SRAM interna ($< 512\,\mathrm{KB}$) per task e dati critici e PSRAM esterna ($8\,\mathrm{MB}$) per tensor arena e buffer audio/vibrazionali.
+	\item \textbf{Efficienza Energetica}: gestione di modalità a basso consumo (modem sleep Wi-Fi e duty-cycle).
+	\item \textbf{Efficienza di Protocollo e Banda}: impiego della serializzazione binaria CBOR, con riduzione dell'overhead di payload rispetto al formato testuale JSON.
+	\item \textbf{Robustezza e Tolleranza ai Guasti}: isolamento dei task critici su core dedicati di FreeRTOS (Core 1 realtime, Core 0 I/O bound), riconnessione automatica al broker MQTT e salvaguardia della coerenza del filesystem FATFS su microSD.
+\end{itemize}
+

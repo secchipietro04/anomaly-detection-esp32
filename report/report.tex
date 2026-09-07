@@ -36,10 +36,10 @@
 \usepackage{array}
 \usepackage{fancyhdr} % nel preambolo, se non già incluso
 \usepackage{graphicx} % per il logo
-\usepackage{ifthen}   % per i controlli condizionali (facoltativo ma utile)
+\usepackage{ifthen} % per i controlli condizionali (facoltativo ma utile)
 \usepackage{float}
 \usepackage{svg}
-    \usepackage{booktabs}        
+    \usepackage{booktabs}
     \usepackage{listings}
 
 
@@ -48,7 +48,7 @@
 \usepackage{algpseudocode}
 
 \usepackage{amssymb}
-    \usetikzlibrary{shapes,arrows,positioning,calc,arrows.meta,shapes.geometric,shadows}                                                                                                                                                                                      
+    \usetikzlibrary{shapes,arrows,positioning,calc,arrows.meta,shapes.geometric,shadows}
 
 % evita che tagli le parole quando deve andare sulla nuova linea
 \hyphenpenalty=10000
@@ -74,7 +74,7 @@
 \def\annoacc{2025 - 2026}
 \def\beforecandidate{LAUREANDO:}
 \def\beforetitle{TESI DI LAUREA IN }
-\def\subject{INFORMATICA} 
+\def\subject{INFORMATICA}
 \def\beforeprof{RELATORI:}
 \def\beforecorrelatore{CORRELATORI:}
 \def\beforeannoacc{ANNO ACCADEMICO}
@@ -100,23 +100,23 @@
 	\node[text width=35em, align=center, yshift=1.2cm, below=of course] (line) {\par\noindent\rule{\textwidth}{0.4pt}};
 	\node[text width=40em, align=center, yshift=.55cm, below=of line] (lia) {\normalsize \beforetitle \xspace \subject};
 
-		
+
   \node[text width=40em, align = center, yshift=-0.5cm,below = of lia](title){\bfseries \parbox{12cm}{\fontsize{21pt}{20pt}\selectfont \centering \title\par}};
-  
+
 	\node[text width=35em, align = left, yshift=-1cm,below = of title](relatoretit){\normalsize \textbf{\beforeprof} };
- 	\node[text width=35em, align = left, yshift=1cm,below = of relatoretit](relatore){\large \relatoreone \\ 
+ 	\node[text width=35em, align = left, yshift=1cm,below = of relatoretit](relatore){\large \relatoreone \\
  		%\relatoretwo
  		};
 
   	%\node[text width=35em, align = left, yshift=0.5cm,below = of relatore](correlatoretit){\normalsize \textbf{\beforecorrelatore}  };
      %\node[text width=35em, align = left, yshift=1cm,below = of correlatoretit](correlatore){\large \correlatoreone \\ \correlatoretwo};
-      
+
 		\node[text width=35em, align = right, yshift=-1cm,below = of title](candidatetit){\normalsize \textbf{\beforecandidate}};
 		 \node[text width=35em, align = right, yshift=1cm,below = of candidatetit](candidate){\large \author};
 
   \node[text width=35em,align = center,  yshift= -3cm,below = of candidate](line2){\par\noindent\rule{\textwidth}{0.4pt}};
-	
-  
+
+
   \node[text width=50em, align = center, yshift=0.5cm,below = of line2](year){\large \beforeannoacc\xspace \annoacc};
 	\end{tikzpicture}
 \end{titlepage}
@@ -134,7 +134,7 @@
 \cleardoublepage
 \pagenumbering{arabic}
 \setcounter{page}{1}
-\addcontentsline{toc}{chapter}{Introduction}
+\addcontentsline{toc}{chapter}{Introduzione}
 \include{Introduction}
 
 \newpage
@@ -152,7 +152,7 @@
 \newpage
 \include{Chap7}
 
-\bibliographystyle{apalike}  
+\bibliographystyle{apalike}
 \nocite{*}
 \bibliography{references}
 

@@ -12,22 +12,25 @@
 	month     = nov,
 	pages     = {21362--21390}
 }
-@online{espressif_esp_mqtt,
-	author = {{Espressif Systems}},
-	title = {ESP-MQTT API Reference - ESP32},
-	url = {https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/mqtt.html},
-	urldate = {2026-08-26},
+@misc{espressif_esp_mqtt,
+	author       = {{Espressif Systems}},
+	title        = {ESP-MQTT API Reference - ESP32},
+	url          = {https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/protocols/mqtt.html},
+	year         = {2024},
+	urldate      = {2026-08-26},
 	organization = {Espressif Systems},
-	note = {ESP-IDF Programming Guide}
+	note         = {ESP-IDF Programming Guide}
 }
 @misc{espressif_esp_tflite_micro,
 	author       = {{Espressif Systems}},
 	title        = {{esp-tflite-micro}},
-	howpublished = {\url{https://components.espressif.com/components/espressif/esp-tflite-micro}},
+	year         = {2024},
+	howpublished = {\url{https://components.espressif.com/components/espressif/esp-tflite-micro}}
 }
 
-    @manual{xtensa_isa,
+@manual{xtensa_isa,
 	title        = {Xtensa Instruction Set Architecture (ISA) Reference Manual},
+	author       = {{Cadence Design Systems}},
 	organization = {Cadence Design Systems, Inc.},
 	edition      = {Rev. 2.0},
 	year         = {2019},
@@ -223,15 +226,16 @@
 	author       = {{Kingston Technology}},
 	title        = {Industrial microSD Card},
 	organization = {Kingston Technology},
+	year         = {2024},
 	url          = {https://www.kingston.com/datasheets/SDCIT-specsheet-64gb_en.pdf},
 	note         = {Accessed: 2026-08-25}
 }
-@online{deneyapkart_esp32s3_power,
-	author    = {{Turkish Technology Team Foundation (T3)}},
-	title     = {Power Consumption (ESP32-S3)},
-	booktitle = {Deneyap Kart v2 Documentation},
-	url       = {https://docs.deneyapkart.org/en/Cards/Deneyap-Kart-v2/Power-Consumption-esp32-s3},
-	urldate   = {2026-08-25}
+@misc{deneyapkart_esp32s3_power,
+	author       = {{Turkish Technology Team Foundation (T3)}},
+	title        = {Power Consumption (ESP32-S3)},
+	year         = {2024},
+	url          = {https://docs.deneyapkart.org/en/Cards/Deneyap-Kart-v2/Power-Consumption-esp32-s3},
+	urldate      = {2026-08-25}
 }
  @manual{adafruit_4682,
    title        = {{Adafruit Micro SD SPI or SDIO Card Breakout Board - 3V ONLY! (Product ID 4682)}},
@@ -263,16 +267,18 @@
 }
 
 @book{cbor_comp,
-author = {Wolf McNally},
-title = {The CBOR, dCBOR, and Gordian Envelope Book},
-date = {2025},
-url = {https://github.com/BlockchainCommons/cbor-book},
-urldate = {24/08/2026},
+	author    = {Wolf McNally},
+	title     = {The CBOR, dCBOR, and Gordian Envelope Book},
+	year      = {2025},
+	publisher = {Blockchain Commons},
+	url       = {https://github.com/BlockchainCommons/cbor-book},
+	urldate   = {24/08/2026}
 }
 
 @misc{espressif_cbor,
 	author       = {{Espressif Systems}},
 	title        = {espressif/cbor: CBOR library for ESP-IDF},
+	year         = {2024},
 	howpublished = {\url{https://components.espressif.com/components/espressif/cbor}},
 	note         = {Componente per ESP-IDF basato su TinyCBOR}
 }
@@ -370,10 +376,175 @@ urldate = {24/08/2026},
 @techreport{isoosi,
 	type        = {Standard},
 	key         = {ISO/IEC 7498-1:1994},
+	author      = {{International Organization for Standardization}},
 	title       = {{Information Technology -- Open Systems Interconnection -- Basic Reference Model: The Basic Model}},
 	number      = {ISO/IEC 7498-1:1994},
 	institution = {International Organization for Standardization},
 	address     = {Geneva, Switzerland},
 	year        = {1994}
 }
-  
+
+@manual{freertos,
+	title        = {{FreeRTOS Reference Manual}},
+	author       = {Richard Barry and {Amazon Web Services}},
+	organization = {Amazon Web Services},
+	year         = {2022},
+	url          = {https://www.freertos.org/}
+}
+
+@manual{mems_board,
+	title        = {{STEVAL-MKI245KA: Evaluation Board for ISM330BX 6-Axis Inertial Module}},
+	author       = {{STMicroelectronics}},
+	organization = {STMicroelectronics},
+	year         = {2024},
+	url          = {https://www.st.com/en/evaluation-tools/steval-mki245ka.html}
+}
+
+@manual{mems_ic,
+	title        = {{ISM330BX: 6-Axis IMU with High-Bandwidth Accelerometer, Sensor Fusion and AI for Industrial Applications}},
+	author       = {{STMicroelectronics}},
+	organization = {STMicroelectronics},
+	year         = {2024},
+	url          = {https://www.st.com/resource/en/datasheet/ism330bx.pdf}
+}
+
+@misc{clearml,
+	title        = {{ClearML}: Open-source MLOps suite for experiment management, orchestration, and data pipelines},
+	author       = {{Allegro AI}},
+	year         = {2024},
+	howpublished = {\url{https://clear.ml/}}
+}
+
+@misc{grafana,
+	title        = {Grafana: The Open and Composable Observability and Data Visualization Platform},
+	author       = {{Grafana Labs}},
+	year         = {2024},
+	howpublished = {\url{https://grafana.com/}}
+}
+
+@inproceedings{optuna2019,
+	title        = {Optuna: A Next-generation Hyperparameter Optimization Framework},
+	author       = {Akiba, Takuya and Sano, Shotaro and Yanase, Toshihiko and Ohta, Takeru and Koyama, Masanori},
+	booktitle    = {Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining},
+	pages        = {2623--2631},
+	year         = {2019},
+	doi          = {10.1145/3292500.3330701}
+}
+
+@inproceedings{bergstra2011algorithms,
+	title        = {Algorithms for Hyper-Parameter Optimization},
+	author       = {Bergstra, James and Bardenet, R{\'e}mi and Bengio, Yoshua and K{\'e}gl, Bal{\'a}zs},
+	booktitle    = {Advances in Neural Information Processing Systems (NeurIPS)},
+	volume       = {24},
+	pages        = {2546--2554},
+	year         = {2011}
+}
+
+@misc{timescaledb,
+	title        = {{TimescaleDB}: An open-source time-series SQL database optimized for fast ingest and complex queries},
+	author       = {{Timescale, Inc.}},
+	year         = {2024},
+	howpublished = {\url{https://www.timescale.com/}}
+}
+
+@techreport{birkholz2019cddl,
+	author       = {Henk Birkholz and Carsten Bormann and Christoph Vigano},
+	title        = {Concise {Data} {Definition} {Language} ({CDDL}): A Notational Convention to Express {CBOR} and {JSON} Data Structures},
+	institution  = {RFC Editor},
+	type         = {RFC},
+	number       = {8610},
+	year         = {2019},
+	doi          = {10.17487/RFC8610},
+	howpublished = {\url{https://www.rfc-editor.org/info/rfc8610}}
+}
+
+@techreport{schaad2022cose,
+	author       = {Jim Schaad},
+	title        = {{CBOR} {Object} {Signing} and {Encryption} ({COSE}): Structures and Process},
+	institution  = {RFC Editor},
+	type         = {RFC},
+	number       = {9052},
+	year         = {2022},
+	doi          = {10.17487/RFC9052},
+	howpublished = {\url{https://www.rfc-editor.org/info/rfc9052}}
+}
+
+@inproceedings{david2021tflitemicro,
+	title        = {{TensorFlow Lite Micro}: Embedded Machine Learning for {TinyML} Systems},
+	author       = {David, Robert and Duke, Jared and Jain, Advait and Janapa Reddi, Vijay and Jeffries, Nat and Li, Jian and Marculescu, Radu and Natraj, Arun and Park, Suvin and Warden, Pete and others},
+	booktitle    = {Proceedings of Machine Learning and Systems (MLSys)},
+	volume       = {3},
+	pages        = {800--811},
+	year         = {2021}
+}
+
+@misc{fastapi,
+	title        = {{FastAPI}: Modern, fast (high-performance), web framework for building APIs with Python},
+	author       = {Sebasti{\'a}n Ram{\'i}rez},
+	year         = {2018},
+	howpublished = {\url{https://fastapi.tiangolo.com/}}
+}
+
+@article{merkel2014docker,
+	title        = {Docker: Lightweight Linux containers for consistent development and deployment},
+	author       = {Merkel, Dirk},
+	journal      = {Linux Journal},
+	volume       = {2014},
+	number       = {239},
+	pages        = {2},
+	year         = {2014}
+}
+
+@book{lyons2010dsp,
+	title        = {Understanding Digital Signal Processing},
+	author       = {Lyons, Richard G.},
+	edition      = {3rd},
+	publisher    = {Prentice Hall},
+	year         = {2010}
+}
+
+@article{rumelhart1986learning,
+	title        = {Learning representations by back-propagating errors},
+	author       = {Rumelhart, David E. and Hinton, Geoffrey E. and Williams, Ronald J.},
+	journal      = {Nature},
+	volume       = {323},
+	number       = {6088},
+	pages        = {533--536},
+	year         = {1986}
+}
+
+@manual{espressif_espidf,
+	title        = {{ESP-IDF Programming Guide}},
+	author       = {{Espressif Systems}},
+	organization = {Espressif Systems},
+	year         = {2024},
+	url          = {https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/}
+}
+
+@article{tnani2022cnc,
+	author    = {Tnani, Mohamed-Ali and Feil, Michael and Diepold, Klaus},
+	title     = {Smart Data Collection System for Brownfield {CNC} Milling Machines: A New Benchmark Dataset for Data-Driven Machine Monitoring},
+	journal   = {Procedia CIRP},
+	volume    = {107},
+	pages     = {131--136},
+	year      = {2022},
+	issn      = {2212-8271},
+	doi       = {10.1016/j.procir.2022.04.022},
+	url       = {https://github.com/boschresearch/CNC_Machining}
+}
+
+@misc{bosch_cnc_dataset,
+	author       = {{Bosch Research}},
+	title        = {{CNC Machining Data}: Real-world industrial vibration dataset for brownfield {CNC} milling machines},
+	year         = {2022},
+	howpublished = {\url{https://github.com/boschresearch/CNC_Machining}},
+	note         = {Companion repository to \cite{tnani2022cnc}}
+}
+
+@techreport{eu_industry50_2021,
+	author      = {Breque, M. and De Nul, L. and Petridis, A.},
+	title       = {Industry 5.0: Towards a sustainable, human-centric and resilient European industry},
+	institution = {European Commission, Directorate-General for Research and Innovation},
+	year        = {2021},
+	doi         = {10.2777/308}
+}

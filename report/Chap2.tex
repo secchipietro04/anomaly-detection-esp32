@@ -1,18 +1,18 @@
 \chapter{Architettura Generale del Sistema}
 \section{Panoramica dell'Architettura di Sistema}
 
-Il sistema è stato sviluppato con una architettura distruibuita di tipo \textit{edge-to-cloud}, progettata per disaccoppiare le fasi di acquisizione dati vibrazionali, l'inferenza di modelli \textit{on edge} per il rilevamento delle anomalie e l'addestramento di questi modelli.
+Il sistema è stato sviluppato con un'architettura distribuita di tipo \textit{edge-to-cloud}, progettata per disaccoppiare le fasi di acquisizione dati vibrazionali, l'inferenza di modelli \textit{on edge} per il rilevamento delle anomalie e l'addestramento di questi modelli.
 Il sistema è formato da quattro livelli principali:
 \begin{itemize}
 	\item \textbf{edge}: dispositivo formato da un microcontrollore e un sensore MEMS a 6 assi, acquisisce i dati vibrazionali, li emette sporadicamente al cloud ed esegue l'inferenza di modelli per valutare se i dati sono anomali
 	\item \textbf{rete}: i dati vengono trasmessi \textit{wireless} usando il protocollo MQTT
-	\item \textbf{backend}; allena i modelli basandosi sui dati ricevuti dai sensori
-	\item \textbf{storage}; abilita la persistenza dei dati storici
+	\item \textbf{backend}: allena i modelli basandosi sui dati ricevuti dai sensori
+	\item \textbf{storage}: abilita la persistenza dei dati storici
 \end{itemize}
 
 \begin{samepage}
 \section{Scelta del Protocollo di Rete}
-Sono stati valutati due protocolli per la trasmissione dei dati, questi sono \textbf{HTTP} e \textbf{MQTT}. 
+Sono stati valutati due protocolli per la trasmissione dei dati, questi sono \textbf{HTTP} e \textbf{MQTT}.
 
 \subsection{HTTP}
 \begin{itemize}
@@ -20,7 +20,8 @@ Sono stati valutati due protocolli per la trasmissione dei dati, questi sono \te
 	\begin{itemize}
 		\item Ideale per l'integrazione con servizi tradizionali client-server.
 		\item Permette trasferimento di file di grandi dimensioni attraverso meccanismi di \textit{chunking}.
-		\item  Ha una latenza più bassa rispetto a MQTT
+		\item Ha una latenza più bassa rispetto a MQTT nel trasferimento di grandi quantità di dati
+
 
 	\end{itemize}
 	\item \textbf{Svantaggi:}
@@ -41,35 +42,37 @@ Sono stati valutati due protocolli per la trasmissione dei dati, questi sono \te
 	\item \textbf{Svantaggi:}
 	\begin{itemize}
 		\item \textbf{Gestione limitata di file pesanti:} non è concepito per il trasferimento efficiente di payload di grandi dimensioni.
-		\item \textbf{Necessario Broker:} necessita di un broker che gestisce la comunicazione tra gli endpoint
-		\item \textbf{Latenza maggiore:} l'intermediazione del broker e i meccanismi di QoS introducono ritardi rispetto a comunicazioni dirette.
+		\item \textbf{Necessario Broker:} necessita di un broker che gestisca la comunicazione tra gli endpoint
+		\item \textbf{Latenza maggiore:} l'intermediazione del broker e i meccanismi di QoS, soprattutto di livello 1 o 2 introducono ritardi rispetto a comunicazioni dirette.
+
 	\end{itemize}
 \end{itemize}
 
-Per la leggerezza del protocollo e per il  sistema a \textit{publish/subscribe} è stato scelto MQTT, tuttavia la parte più critica è la trasmissione dei modelli, essendo di dimensione non trascurabile, per questo tipo di comunicazione si sarebbe potuta usare una architettura ibrida dove via MQTT l'edge device viene notificato del caricamento dei nuovi modelli che verrebbero poi scaricati via una richiesta GET di HTTP usando le funzioni di \textit{chunking}  del payload.
+Per la leggerezza del protocollo e per il sistema a \textit{publish/subscribe} è stato scelto MQTT per tutte le comunicazioni tra l'edge device e il servizio.
+La parte più critica è la trasmissione dei modelli, essendo di dimensione non trascurabile, per questo tipo di comunicazione si sarebbe potuta usare un'architettura ibrida dove via MQTT l'edge device viene notificato del caricamento dei nuovi modelli che verrebbero poi scaricati via una richiesta GET di HTTP usando le funzioni di \textit{chunking} del payload.
 
 \section{Scelta del Protocollo di Presentazione Dati}
-
-È necessaria una Lingua Franca per la rappresentazione dei dati condivisa che permette ai vari  dispositivi nella rete di codificare e decodificare i dati in un formato condiviso, come descrive il livello 6 del modello \textit{ISO/OSI} \cite{isoosi}.
-Le scelte si dividono in protocolli basati su testo (XML \cite{bray2008xml} /JSON      
-\cite{bray2017json}) e protocolli a rappresentazione binaria (CBOR \cite{bormann2020cbor}/BSON \cite{bson2009spec}/Protocol Buffers \cite{varda2008protobuf}/MessagePack \cite{furuhashi2013msgpack}/Avro \cite{apache2011avro})
-% forse troppo confusionario il nome \cite /
+\label{sec:scelta_cbor}
+È necessaria una Lingua Franca per la rappresentazione dei dati condivisa che permetta ai vari dispositivi nella rete di codificare e decodificare i dati in un formato condiviso, come descrive il livello 6 del modello \textit{ISO/OSI} \cite{isoosi}.
+Le scelte si dividono in protocolli basati su testo (XML \cite{bray2008xml}, JSON \cite{bray2017json}) e protocolli a rappresentazione binaria (CBOR \cite{bormann2020cbor}, BSON \cite{bson2009spec}, Protocol Buffers \cite{varda2008protobuf}, MessagePack \cite{furuhashi2013msgpack}, Avro \cite{apache2011avro})
+% forse troppo confusionario il **nome \cite ,**
 
 
 \subsection{Protocolli basati sul testo}
 % troppo scarna infarinatura?
+
 XML nasce come linguaggio di marcatura per documenti complessi basato su tag ed elementi ricchi di metadati
 Il JSON è un formato minimale per lo scambio di dati basato su coppie chiave-valore e array.
 Il JSON risulta notevolmente più leggero (30-40\% di dimensione in meno \cite{cbor_comp} ), leggibile e rapido da elaborare via codice rispetto alla prolissità e alla complessità strutturale dell'XML.
 
 \subsection{Protocolli basati su Rappresentazione Binaria}
-Di natura sono più leggeri rispetto ai protocolli basati sul testo,  evitando la conversione del testo in dati usabili dall'applicativo, quindi sono preferibili in sistemi limitati che giovano ad avere un risparmio di tempo di calcolo e di memoria.
+Di natura sono più leggeri rispetto ai protocolli basati sul testo, evitando la conversione del testo in dati usabili dall'applicativo, quindi sono preferibili in sistemi limitati che giovano ad avere un risparmio di tempo di calcolo e di memoria.
 \begin{table}[H]
 	\centering
 	\caption{Confronto formati di serializzazione binaria}
 	\label{tab:formati_serializzazione}
 	\footnotesize
-	\setlength{\tabcolsep}{4pt}    % Riduce lo spazio orizzontale tra le colonne
+	\setlength{\tabcolsep}{4pt} % Riduce lo spazio orizzontale tra le colonne
 	\renewcommand{\arraystretch}{1.15} % Spaziatura verticale compatta
 	\begin{tabularx}{\textwidth}{@{} l | *{5}{Y} @{}}
 		\hline
@@ -101,18 +104,33 @@ Di natura sono più leggeri rispetto ai protocolli basati sul testo,  evitando l
 	\end{tabularx}
 \end{table}
 
-Data la tabella la migliore scelta è \textit{CBOR} (Concise Binary Object Representation), per i seguenti motivi: è un protocollo \textit{royalty-free} e \textit{open source}, è stato sviluppato dalla base per essere usato in contesti IoT per usare poca memoria e permette di criptare i dati nativamente.
-Viene usata come libreria sul microcontrollore \textit{espressif/cbor}~\cite{espressif_cbor}, derivata da \textit{tinycbor}~\cite{tinycbor}, ed è impiegato anche \textit{zcbor} \cite{zcbor}, un programma che permette di tradurre lo schema CDDL direttamente in codice C ottimizzato per la codifica e/o decodifica dei pacchetti in struct.
+Data la tabella la migliore scelta è \textit{CBOR} (Concise Binary Object Representation), per i seguenti motivi: è un protocollo \textit{royalty-free} e \textit{open source}, è stato sviluppato dalla base per essere usato in contesti IoT per usare poca memoria e supporta nativamente la criptazione dei dati, attraverso lo standard COSE (CBOR Object Signing and Encryption, RFC 9052 \cite{schaad2022cose}).
+
+
+Viene usata come libreria sul microcontrollore \textit{espressif/cbor} \cite{espressif_cbor}, derivata da \textit{tinycbor} \cite{tinycbor}, ed è impiegato anche \textit{zcbor} \cite{zcbor}, un programma che permette di tradurre lo schema CDDL \cite{birkholz2019cddl} direttamente in codice C ottimizzato per la codifica e/o decodifica dei pacchetti in struct.
 
 \section{Architettura backend}
-il backend è formato da servizi ospitati su container Docker, il che permette di rendere il servizio modulare e facilmente riproducibile.
+Il backend è formato da servizi ospitati su container Docker \cite{merkel2014docker}, il che permette di rendere il servizio modulare e facilmente riproducibile.
 I servizi docker sono:
 
 \begin{itemize}
-	\item \textbf{EMQX}: \cite{emqx} Un broker MQTT, versione Community, selezionato perchè include funzionalità \textit{event driven}, come il salvataggio  automatico in un database sql quando riceve un pacchetto.
-	\item \textbf{Controller}: un servizio scritto in python che gestisce il \textit{lifecycle} dei sensori, incluso l'allenamento dei modelli.
-	\item \textbf{Postgresql}; \cite{postgresql} un database relazionale, scelto per la  familiarità pregressa con tale tecnologia, che ha permesso di ridurre i tempi di sviluppo e concentrarsi direttamente sugli obiettivi del lavoro."
-	%ancora non aggiunta  \item \textbf{grafana}: Permette di visualizzare graficamente i dati dei sensori e i valori inferenziali
+
+	\item \textbf{emqx}: \cite{emqx} Un broker MQTT, versione Community, gestisce la connessione MQTT
+	\item \textbf{postgres}: \cite{postgresql} un database relazionale con estensione TimescaleDB \cite{timescaledb}, che migliora le prestazioni della base di dati nella gestione, scrittura e analisi di dati temporali.
+	\item \textbf{api\_service}: Server FastAPI \cite{fastapi} per la gestione dei dati del database.
+	\item \textbf{mqtt\_service}: Si interfaccia al servizio MQTT, ricevendo i dati dal sensore e pubblicandogli i modelli e configurazioni, gestendone il lifecycle.
+	\item \textbf{nas\_service}: Neural Architecture Search, Servizio che usa Optuna \cite{optuna2019} per la ricerca architetturale e allenamento modelli tflite \cite{david2021tflitemicro} specifici al sensore.
+	\item \textbf{grafana}: \cite{grafana} Dashboard per visualizzazione dei dati e risultati di inferenza.
+	\item \textbf{clearml\_*}: \cite{clearml} Piattaforma per tracciare parametri, loss e metriche dei modelli, divisa in 6 container:
+	\begin{itemize}
+		\item API
+		\item Web
+		\item Files
+		\item Elastic
+		\item Redis
+		\item Mongo
+	\end{itemize}
+
 \end{itemize}
 
 
@@ -123,13 +141,13 @@ Come sensore MEMS viene usato il modulo \textit{STEVAL-MKI245KA} \cite{mems_boar
 
 Il sistema operativo usato è \textit{FreeRTOS} \cite{freertos}, un sistema operativo runtime minimale che espone le funzionalità base di un sistema operativo, come la creazione di task, la gestione della rete e del \textit{file system}.
 
-Come \textit{framework} di sviluppo viene usato ESP-IDF scelto per il controllo più a basso livello, rispetto ad Arduino Core, delle periferiche hardware e la gestione nativa dei task FreeRTOS.
+Come \textit{framework} di sviluppo viene usato ESP-IDF \cite{espressif_espidf}, scelto per il controllo più a basso livello, rispetto ad Arduino Core, delle periferiche hardware e la gestione nativa dei task FreeRTOS.
 
 
 
 
- 
- 
+
+
 
 
 

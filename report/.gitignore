@@ -1,0 +1,6 @@
+*.aux
+svg-inkscape/
+template/
+*.lol
+*.out
+_minted/

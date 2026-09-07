@@ -1,1 +1,172 @@
 \chapter{Testing, Deployment e Risultati}
+
+\section{Benchmark}
+
+\subsection{Velocità}
+È stato eseguito un benchmark per architettura direttamente sull'hardware di destinazione. Per bilanciamento ciascun modello è stato vincolato ad 1 MB di memoria flash, la tabella \ref{tab:esp32_hardware_benchmark} mostra i risultati.
+Possiamo notare nella tabella che il router MCNN è particolarmente lento e ingombrante, questo perché è sia strutturalmente il più pesante come architettura, sia fortemente penalizzato dal vincolo di memoria a 1 MB.
+É possibile anche notare che gli autoencoder convoluzionali 2D, o convoluzionali sono particolarmente pesanti, questo perché mentre la conv 1D sfrutta il dominio della frequenza come canale multifeature e comprime esclusivamente la dinamica temporale mantenendo vettori piccoli, la conv 2D tratta lo spettrogramma come una vera matrice spaziale, pagando un prezzo quadratico sia nelle feature map intermedie (RAM di attivazione ×11) sia nelle matricidi proiezione del collo di bottiglia latente (Flash ×10).
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{llccc}
+		\toprule
+		\textbf{Architettura} & \textbf{Memoria} & \textbf{Range flash} & \textbf{RAM [kB]} & \textbf{Latenza [ms]} \\
+		\midrule
+		\multicolumn{5}{l}{\textbf{Router}} \\
+		Dense             & No  & 66 -- 645 KB         & 8.7   & 34.22 \\
+		Dense             & Sì  & 67 -- 654 KB         & 8.9   & 34.38 \\
+		Conv 1D           & No  & 18 -- 85 KB          & 9.5   & 58.90 \\
+		Conv 1D           & Sì  & 19 -- 89 KB          & 9.7   & 58.99 \\
+		STFT MCNN         & No  & 773 KB -- 4.0 MB*    & 385.7 & 245.24 \\
+		STFT MCNN         & Sì  & 775 KB -- 4.0 MB*    & 385.9 & 253.89 \\
+		\midrule
+		\multicolumn{5}{l}{\textbf{Modulo di Memoria Temporale}} \\
+		LSTM                    & --  & 62 -- 226 KB         & 31.2  & 248.28 \\
+		\midrule
+		\multicolumn{5}{l}{\textbf{Autoencoder}} \\
+		Denso             & No  & 261 KB -- 3.20 MB    & 8.9   & 33.45 \\
+		Denso            & Sì  & 264 KB -- 3.22 MB    & 9.2   & 33.86 \\
+		Variazionale      & No  & 263 KB -- 1.20 MB    & 8.9   & 33.45 \\
+		Variazionale     & Sì  & 266 KB -- 1.21 MB    & 9.2   & 33.86 \\
+		Conv 1D    & No  & 67 -- 409 KB         & 11.6  & 124.60 \\
+		Conv 1D       & Sì  & 68 -- 412 KB         & 11.8  & 125.07 \\
+		Conv 2D        & No  & 1.04 -- 4.0 MB*      & 129.7 & 201.18 \\
+		Conv 2D       & Sì  & 1.04 -- 4.0 MB*      & 129.8 & 203.91 \\
+		ConvLSTM       & No  & 553 KB -- 2.11 MB    & 138.2 & 346.07 \\
+		ConvLSTM         & Sì  & 559 KB -- 2.12 MB    & 138.6 & 349.91 \\
+		\bottomrule
+	\end{tabular}
+	\caption{Benchmark delle prestazioni di inferenza on-device su ESP32-S3 a 240 MHz (modelli benchmark normalizzati a circa 1 MB di Flash, la latenza e arena sono calcolate su modelli grandi 1MB con Tensor Arena allocata in PSRAM). La colonna \emph{Range flash} riporta la dimensione reale (file \texttt{.tflite}) esplorata dal NAS tra configurazione minima e massima, con limite superiore troncato a 4.0 MB (*).}
+	\label{tab:esp32_hardware_benchmark}
+\end{table}
+
+\subsection{Accuratezza e Valutazione Benchmark}
+La tabella \ref{tab:benchmark_f1_summary} riassume i risultati di rilevamento ottenuti senza memoria e con memoria (formato: \emph{Senza Memoria / Con Memoria}).
+Il dataset usato è il dataset fornito da Bosch  \cite{bosch_cnc_dataset}, contiene sia dati anomali che non di macchinari CNC in diversi processi.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (F1-Score: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 0.495 / 0.487 & 0.489 / 0.486 & 0.499 / 0.500 \\
+		Variazionale AE     & 0.503 / 0.498 & 0.498 / 0.502 & 0.510 / 0.506 \\
+		Conv 1D AE          & 0.473 / 0.463 & 0.453 / 0.462 & 0.467 / 0.475 \\
+		Conv 2D AE          & 0.516 / \textbf{0.519} & \textbf{0.520} / \textbf{0.512} & \textbf{0.526} / \textbf{0.521} \\
+		ConvLSTM            & 0.428 / 0.415 & 0.417 / 0.423 & 0.418 / 0.431 \\
+		Ensemble Eterogeneo & \textbf{0.517} / 0.514 & 0.505 / 0.509 & 0.517 / 0.515 \\
+		\bottomrule
+	\end{tabular}
+	\caption{F1-Score medio su tutte le valutazioni CNC al variare dell'autoencoder e router (\emph{Senza Memoria / Con Memoria}).}
+	\label{tab:benchmark_f1_summary}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (F1-Score: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 0.475 / 0.466 & 0.455 / 0.462 & 0.475 / 0.469 \\
+		Variazionale AE     & 0.496 / 0.491 & 0.481 / 0.500 & 0.497 / 0.492 \\
+		Conv 1D AE          & 0.448 / 0.432 & 0.404 / 0.428 & 0.418 / 0.452 \\
+		Conv 2D AE          & 0.512 / 0.524 & 0.512 / 0.512 & 0.520 / 0.509 \\
+		ConvLSTM            & 0.410 / 0.390 & 0.384 / 0.400 & 0.382 / 0.423 \\
+		Ensemble Eterogeneo & \textbf{0.569} / \textbf{0.571} & \textbf{0.551} / \textbf{0.564} & \textbf{0.572} / \textbf{0.567} \\
+		\bottomrule
+	\end{tabular}
+	\caption{F1-Score medio nelle lavorazioni in cui l'Ensemble Eterogeneo supera i modelli singoli (33.3\% del totale).}
+	\label{tab:benchmark_f1_hetero_wins}
+\end{table}
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (F1-Score: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 0.531 / 0.534 & 0.508 / 0.528 & 0.530 / 0.538 \\
+		Variazionale AE     & \textbf{0.536} / 0.535 & 0.516 / \textbf{0.544} & \textbf{0.536} / \textbf{0.540} \\
+		Conv 1D AE          & 0.493 / 0.487 & 0.462 / 0.499 & 0.471 / 0.508 \\
+		Conv 2D AE          & 0.528 / 0.531 & \textbf{0.519} / 0.530 & 0.529 / 0.534 \\
+		ConvLSTM            & 0.451 / 0.443 & 0.416 / 0.459 & 0.425 / 0.458 \\
+		Ensemble Eterogeneo & 0.526 / \textbf{0.534} & 0.503 / 0.535 & 0.524 / 0.529 \\
+		\bottomrule
+	\end{tabular}
+	\caption{F1-Score medio nelle lavorazioni CNC in cui la memoria temporale migliora le prestazioni complessive (13 lavorazioni su 30, 43.3\% del totale).}
+	\label{tab:benchmark_f1_mem_wins}
+\end{table}
+
+La tabella \ref{tab:benchmark_separation_summary} mostra il \emph{Separation Ratio} ($\text{MSE}_{\text{anomalo}} / \text{MSE}_{\text{normale}}$), quantifica la distanza tra l'errore di ricostruzione dei segmenti anomali rispetto ai sani.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (Separation Ratio: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 1.58 / 1.59 & 1.59 / 1.59 & 1.57 / 1.59 \\
+		Variazionale AE     & 1.55 / 1.57 & 1.56 / 1.57 & 1.54 / 1.56 \\
+		Conv 1D AE          & 1.55 / 1.56 & 1.55 / 1.56 & 1.53 / 1.55 \\
+		Conv 2D AE          & \textbf{1.58} / \textbf{1.59} & \textbf{1.60} / \textbf{1.59} & \textbf{1.58} / 1.58 \\
+		ConvLSTM            & 1.50 / 1.50 & 1.49 / 1.50 & 1.48 / 1.50 \\
+		Ensemble Eterogeneo & 1.55 / 1.57 & 1.55 / 1.56 & 1.54 / 1.56 \\
+		\bottomrule
+	\end{tabular}
+	\caption{Separation Ratio medio(formato: \emph{Senza Memoria / Con Memoria}). Valori più alti indicano una discriminazione maggiore dell'anomalia.}
+	\label{tab:benchmark_separation_summary}
+\end{table}
+
+
+
+\subsection{Occupazione di Memoria RAM e Flash}
+La tabella \ref{tab:benchmark_ram_summary} mostra la RAM necessaria per l'inferenza, mostrando l'impatto della memoria. 
+La tabella \ref{tab:benchmark_storage_summary} mostra l'occupazione totale in memoria flash degli ensemble.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{C onv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (RAM di Attivazione [kB]: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 656.5 / 741.0   & 560.5 / 645.1   & 2065.0 / 2149.6 \\
+		Variazionale AE     & 660.5 / 745.1   & 564.6 / 649.1   & 2069.1 / 2153.6 \\
+		Conv 1D AE          & \textbf{257.2} / \textbf{341.8} & \textbf{161.3} / \textbf{245.8} & \textbf{1665.8} / \textbf{1750.3} \\
+		Conv 2D AE          & 1198.2 / 1282.8 & 1102.3 / 1186.8 & 2606.8 / 2691.3 \\
+		ConvLSTM            & 658.0 / 742.5   & 562.0 / 646.6   & 2066.5 / 2151.1 \\
+		Ensemble Eterogeneo & 1180.3 / 1264.9 & 1084.4 / 1168.9 & 2588.9 / 2673.4 \\
+		\bottomrule
+	\end{tabular}
+	\caption{RAM di attivazione [kB] (formato: \emph{Senza Memoria / Con Memoria})..}
+	\label{tab:benchmark_ram_summary}
+\end{table}
+
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{lccc}
+		\toprule
+		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
+		& \multicolumn{3}{c}{\small (Storage Flash Totale [kB]: Senza Memoria / Con Memoria)} \\
+		\midrule
+		Dense AE            & 3284.3 / 3368.8 & 3188.3 / 3272.9 & 4692.8 / 4777.4 \\
+		Variazionale AE     & 3308.6 / 3393.2 & 3212.7 / 3297.3 & 4717.2 / 4801.8 \\
+		Conv 1D AE          & \textbf{888.8} / \textbf{973.3} & \textbf{792.8} / \textbf{877.4} & \textbf{2297.3} / \textbf{2381.9} \\
+		Conv 2D AE          & 6534.8 / 6619.4 & 6438.9 / 6523.4 & 7943.4 / 8027.9 \\
+		ConvLSTM            & 3293.3 / 3377.8 & 3197.3 / 3281.9 & 4701.8 / 4786.4 \\
+		Ensemble Eterogeneo & 4538.9 / 4623.5 & 4443.0 / 4527.5 & 5947.5 / 6032.0 \\
+		\bottomrule
+	\end{tabular}
+	\caption{Occupazione totale dello storage Flash (in kB) per ciascun modello. Formato: \emph{Senza Memoria / Con Memoria}.}
+	\label{tab:benchmark_storage_summary}
+\end{table}
+
+
+

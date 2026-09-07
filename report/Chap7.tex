@@ -1,1 +1,81 @@
 \chapter{Conclusioni e Sviluppi Futuri}
+
+\section{Conclusioni}
+\begin{itemize}
+	\item \textbf{Dimostrazione di fattibilità TinyML su ESP32-S3}: é stata dimostrata la capacità inferenziale di un microcontrollore a basso costo con performance apprezzabili on edge. 
+	\item \textbf{Dimostrazione delle capacità dell'architettura}: sebbene migliorabile, é stata dimostrata la capacità dell'architettura dell'ensemble eterogeneo per anomaly detection multi-regime
+	\item \textbf{Efficacia della pipeline dai dati al modello}: l'architettura a microservizi si é dimostrata efficace per raccogliere i dati dai sensori e distribuire i modelli allenati ai device.
+\end{itemize}
+
+
+
+Come visto nei risultati un \textit{ensemble} eterogeneo può prendere i fattori migliori di ogni autoencoder e router, tuttavia un ensemble eterogeneo non sempre é il modello migliore e la memoria non sempre migliora la qualità in modo significativo.
+
+\subsection{Quando la Memoria Peggiora}
+L'analisi mostra che l'uso di un modulo di memoria temporale non introduce un miglioramento sistematico delle performance dei modelli.
+Motivi fisici per cui la memoria peggiora:
+\begin{itemize}
+	\item  \textbf{Error Smearing}: il modello ricorrente (memoria) accumula informazioni nel suo stato interno. Durante un cambio repentino dei regime, come quando un di utensile viene inserito nel materiale, il modello ricorrente ci mette svariati momenti per cambiare lo stato interno con il nuovo regime, l'inerzia rende il modello meno reattivo peggiorando le performance in macchinari soggetti a cambi netti aumentando i Falsi Negativi. Al contrario quando si passa da uno stato rumoroso ad uno stato normale il modello continuerà a fornire Falsi Positivi per qualche frame.
+	Questo migliora la precisione in macchinari con un lento cambiamento di regime, evitando anche che colpi al macchinario dati dagli operatori vengano interpretati come anomalie.
+	
+	\item \textbf{Fasi di lavoro discontinue}: un macchinario CNC, come quelli del dataset, non lavora in modo continuo, fa passaggi netti tra uno stato e l'altro, come quando c'é un cambio di direzione. Una memoria LSTM prova a prevedere il prossimo segmento, quando il prossimo segmento cambia completamente regime di lavoro questo viene interpretato come un anomalia, in questi casi basta una fotografia istantanea del segnale, senza memoria
+	
+	\item \textbf{Vincoli TinyML}: per mantenere una latenza e una dimensione apprezzabili sul device la dimensione del modello deve essere relativamente piccola. Un modello LSTM più é piccolo più fatica a trovare dinamiche complesse del segnale
+	
+\end{itemize}
+
+Tuttavia non tutte le operazioni nel dataset sono di questo tipo, possiamo vedere nella tabella \ref{tab:benchmark_f1_mem_wins} che in tipi specifici di operazioni su macchinari, aggiungere la memoria migliora il modello.
+
+\subsection{Quando un Ensemble Eterogeneo Peggiora}
+L'analisi mostra che l'uso di un ensemble eterogeneo non introduce un miglioramento sistematico delle performance rispetto a un ensemble omogeneo. Il router è identico e gestisce i segmenti nello stesso modo. 
+I motivi delle performance peggiori sono:
+\begin{itemize}
+	\item \textbf{Bias di selezione non supervisionata}: In fase di addestramento non supervisionato, viene scelto l'autoencoder migliore, non avendo dati anomali viene scelto il modello più capace a ricostruire il segnale non anomalo, tuttavia questo modello non é detto che sia adatto alla ricostruzione di segnali anomali, potrebbe essere troppo capace, aumentando di Falsi Negativi. 
+	
+	\item \textbf{Disomogeneità delle architetture}: il continuo cambiamento di sottomodelli con scale di ricostruzione diverse rende la funzione loss di ricostruzione meno uniforme rispetto ad un ensemble omogeneo, comprimendo il separation ratio complessivo
+	
+\end{itemize}
+
+Possiamo vedere comunque nella tabella \ref{tab:benchmark_f1_hetero_wins} che un ensemble eterogeneo é comunque migliore in molti casi, rendendolo una scelta ottima in circa un terzo dei dati nel dataset.
+
+\newpage
+\section{Svluppi Futuri}
+\subsection{Miglioramento dei modelli}
+\subsubsection{Generazione di dati anomali}
+Per mitigare il bias di selezione non supervisionata si potrebbe aggiungere ai dati non anomali disponibili delle perturbazioni artificiali per selezionare i modelli più adatti all'ensemble eterogeneo. 
+L'inserimento di perturbazioni realistiche non é triviale.
+Se si prova ad aggiungere rumore bianco, viene distribuita dell'energia nel segnale in modo uniforme  su tutti i bin di frequenze. Una rete convoluzionale riesce a separare il rumore artificiale relativamente facilmente, tuttavia sacrificando precisione nel resto delle ricostruzioni senza aver appreso come si verificano i guasti. 
+Se si prova a mascherare una parte di un segmento, azzerandolo o copiandolo da un altro segmento, la rete impara a riconoscere la discontinuità, non l'anomalia fisica.
+
+Per creare segnali anomali artificiali, bisognerebbe modellare matematicamente fenomeni specifici al macchinario, come la scheggiatura di un dente, che aggiungerebbe bande laterali attorno alla frequenza di taglio. Per sintetizzare l'anomalia bisognerebbe conoscere a priori il numero di denti, velocità istantanea, carico di taglio e funzione risposta impulsiva del macchinario. Questo implica che la gestione della generazione dei dati é estremamente specifica al tipo di macchinario.
+
+\subsubsection{Gestione della deriva delle vibrazioni}
+Durante la vita di un macchinario vengono viste derive meccaniche causate da usure progressive naturali cambiando molto lentamente la firma vibrazionale del macchinario.
+Un gestore potrebbe impostare una soglia di deriva oltre la quale il macchinario viene considerato troppo usurato e necessita di una manutenzione preventiva.
+Per la gestione di questo caso si potrebbero mantenere due ensemble, uno fisso nel tempo e uno con continuo allenamento. Quello fisso verrebbe allenato una volta durante l'installazione o dopo una manutenzione, mentre l'altro verrebbe continuamente allenato sui nuovi dati. Il modello fisso nota le derive meccaniche lente, mentre quello continuo le rotture del macchinario, che hanno un cambio repentino dei dati nel breve periodo.
+
+\subsubsection{Aggiunta e Unione di Altri Dati}
+Si potrebbero integrare in modo modulare altri dati disponibili specifici al macchinario, come temperature di varie parti del macchinario, assorbimento di corrente del motore mandrino o potenza assorbita via Modbus/OPC-UA.
+
+Per aumentare la precisione generale si potrebbe aggiungere una modalità a flotta di sensori, facendo condividere a più sensori i dati tra loro su uno stesso macchinario per insegnare ai modelli come cambia la vibrazione tra le varie sezioni del macchinario. La backend supporta più sensori, ma non in modo collaborativo.
+
+\subsection{Miglioramento Architettura del Sistema}
+\subsubsection{Architettura Scalabile}
+Attualmente la architettura della backend é modulare, sfruttando 12 container docker, il che rende la architettura semi scalabile orizzontalmente. 
+Per migliorare la scalabilità orizzontale bisognerebbe passare ad un orchestratore di container, come Kubernetes, per avere più container dello stesso tipo nello stesso momento distribuendo l'allenamento dei modelli.
+
+
+\subsubsection{Tiering dei Dati}
+Tutta la telemetria grezza viene salvata direttamente nelle hypertable di TimescaleDB.
+Salvare dati vibrazionali continui genera decine di gigabyte al giorno, rallentando le basi di dati.
+Per rendere più veloce il database si può inserire un sistema di tiering dei dati, ovvero avere un secondo tier di dati per salvare dati storici salvandoli in un Object storage, come S3 o MinIo in modo compresso.
+
+\subsubsection{Sicurezza}
+Il backend compila il binario .tflite e lo spedisce via MQTT.  Un attaccante potrebbe intercettare il modello o il topic MQTT e iniettare un modello malevolo che nasconde guasti.
+Per uno sviluppo futuro si potrebbe sfruttare lo standard COSE \cite{schaad2022cose}, supportato direttamente da CBOR, per firmare digitalmente i modelli e i dati per verificarne la sorgente per avere un sistema di Zero-Trust IoT.
+
+
+\subsubsection{Active Learning}
+Attualmente la backend fornisce un modo grafico per la gestione dei dati e dei modelli attraverso Grafana, tuttavia é poco amichevole per un operatore di un macchinario. Bisognerebbe aggiungere un interfaccia per gli HMI dei macchinari agganciandosi al OPC-UA/Modbus integrato nel PLC del macchinario per esporre un interfaccia semplice per l'operatore per notificare falsi positivi o negativi e sfruttare questi dati nel training essendo manualmente etichettati.
+
+ 
