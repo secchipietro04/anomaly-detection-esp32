@@ -40,17 +40,22 @@ class ClearMLTracker:
             self.is_offline = True
             return
 
-        # setup env vars if provided
-        if settings.clearml_api_host:
-            os.environ["CLEARML_API_HOST"] = settings.clearml_api_host
-        if settings.clearml_web_host:
-            os.environ["CLEARML_WEB_HOST"] = settings.clearml_web_host
-        if settings.clearml_files_host:
-            os.environ["CLEARML_FILES_HOST"] = settings.clearml_files_host
+        api_host = settings.clearml_api_host or "http://clearml_apiserver:8008"
+        web_host = settings.clearml_web_host or "http://clearml_webserver:80"
+        files_host = settings.clearml_files_host or "http://clearml_fileserver:8081"
+
+        os.environ["CLEARML_API_HOST"] = api_host
+        os.environ["CLEARML_WEB_HOST"] = web_host
+        os.environ["CLEARML_FILES_HOST"] = files_host
+        os.environ["CLEARML_NO_DEFAULT_SERVER"] = "0"
+
+        if settings.clearml_access_key:
+            os.environ["CLEARML_API_ACCESS_KEY"] = settings.clearml_access_key
+        if settings.clearml_secret_key:
+            os.environ["CLEARML_API_SECRET_KEY"] = settings.clearml_secret_key
             
         try:
             from clearml import Task
-            # attempt init
             self.task = Task.init(
                 project_name=self.project_name,
                 task_name=self.task_name,

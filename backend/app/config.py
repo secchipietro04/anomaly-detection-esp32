@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     clearml_web_host: str = Field(default="http://localhost:30988", alias="CLEARML_WEB_HOST")
     clearml_files_host: str = Field(default="http://localhost:30981", alias="CLEARML_FILES_HOST")
     clearml_project_name: str = Field(default="research-ml-edge", alias="CLEARML_PROJECT_NAME")
-    clearml_access_key: str = Field(default="", alias="CLEARML_ACCESS_KEY")
-    clearml_secret_key: str = Field(default="", alias="CLEARML_SECRET_KEY")
+    clearml_access_key: str = Field(default="", alias="CLEARML_API_ACCESS_KEY")
+    clearml_secret_key: str = Field(default="", alias="CLEARML_API_SECRET_KEY")
 
     # nas and penalty params
     nas_data_threshold_bytes: int = Field(default=1048576, alias="NAS_DATA_THRESHOLD_BYTES")

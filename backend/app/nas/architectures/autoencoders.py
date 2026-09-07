@@ -14,11 +14,11 @@ class DenseAutoencoder(BaseArchitecture):
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "latent_dim": trial.suggest_categorical(f"{p}latent_dim", [8, 16, 32, 64]),
-            "num_layers": trial.suggest_int(f"{p}num_layers", 1, 3),
-            "loss_mode": trial.suggest_categorical(f"{p}loss_mode", [int(LossMode.LOG_MSE), int(LossMode.LINEAR_MSE)]),
-            "limit": trial.suggest_float(f"{p}limit", 0.05, 0.5),
-            "skip": trial.suggest_categorical(f"{p}skip", [1, 2, 4]),
+            "latent_dim": trial.suggest_categorical(f"{p}da_latent_dim", [8, 16, 32, 64]),
+            "num_layers": trial.suggest_int(f"{p}da_num_layers", 1, 3),
+            "loss_mode": 1,
+            "limit": trial.suggest_float(f"{p}da_limit", 0.05, 0.5),
+            "skip": trial.suggest_categorical(f"{p}da_skip", [1, 2, 4]),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
@@ -39,11 +39,11 @@ class VariationalAutoencoder(BaseArchitecture):
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "latent_dim": trial.suggest_categorical(f"{p}latent_dim", [8, 16, 32]),
-            "num_layers": trial.suggest_int(f"{p}num_layers", 1, 2),
-            "loss_mode": trial.suggest_categorical(f"{p}loss_mode", [int(LossMode.LOG_MSE), int(LossMode.LINEAR_MSE)]),
-            "limit": trial.suggest_float(f"{p}limit", 0.05, 0.5),
-            "skip": trial.suggest_categorical(f"{p}skip", [1, 2, 4]),
+            "latent_dim": trial.suggest_categorical(f"{p}va_latent_dim", [8, 16, 32]),
+            "num_layers": trial.suggest_int(f"{p}va_num_layers", 1, 2),
+            "loss_mode": 1,
+            "limit": trial.suggest_float(f"{p}va_limit", 0.05, 0.5),
+            "skip": trial.suggest_categorical(f"{p}va_skip", [1, 2, 4]),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
@@ -58,86 +58,81 @@ class Conv1DAutoencoder(BaseArchitecture):
     # 1d convolutional autoencoder
     tag = ArchitectureTag.CA_1D
     model_type = ModelType.AUTOENCODER
-    required_ops: Set[str] = {"CONV_2D", "TRANSPOSE_CONV", "MAX_POOL_2D", "RESHAPE", "RELU", "SUB", "SQUARE", "MEAN"}
+    required_ops: Set[str] = {"CONV_2D", "CONV_2D_TRANSPOSE", "RELU", "SUB", "SQUARE", "MEAN"}
 
     def sample_hyperparameters(self, trial: optuna.Trial, prefix: str = "") -> Dict[str, Any]:
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "filters": trial.suggest_categorical(f"{p}filters", [16, 32, 64]),
-            "latent_dim": trial.suggest_categorical(f"{p}latent_dim", [16, 32]),
-            "num_layers": trial.suggest_int(f"{p}num_layers", 1, 2),
-            "loss_mode": trial.suggest_categorical(f"{p}loss_mode", [int(LossMode.LOG_MSE), int(LossMode.LINEAR_MSE)]),
-            "limit": trial.suggest_float(f"{p}limit", 0.05, 0.5),
-            "skip": trial.suggest_categorical(f"{p}skip", [1, 2, 4]),
+            "filters": trial.suggest_categorical(f"{p}ca1d_filters", [16, 32, 64]),
+            "latent_dim": trial.suggest_categorical(f"{p}ca1d_latent_dim", [16, 32]),
+            "num_layers": trial.suggest_int(f"{p}ca1d_num_layers", 1, 2),
+            "loss_mode": 1,
+            "limit": trial.suggest_float(f"{p}ca1d_limit", 0.05, 0.5),
+            "skip": trial.suggest_categorical(f"{p}ca1d_skip", [1, 2, 4]),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
-        in_dim = input_bins * tsteps
-        filters = params.get("filters", 16)
+        filters = params.get("filters", 32)
         latent = params.get("latent_dim", 16)
         layers = params.get("num_layers", 2)
-        param_count = (filters * 9 + latent * (in_dim // 4)) * layers * 2
+        param_count = (filters * 3 * 2 + filters * filters * 3 + filters * latent + latent * filters) * layers
         return 1024 + param_count * 4
 
 class Conv2DAutoencoder(BaseArchitecture):
-    # 2d convolutional autoencoder
+    # 2d spatial-temporal convolutional autoencoder
     tag = ArchitectureTag.CA_2D
     model_type = ModelType.AUTOENCODER
-    required_ops: Set[str] = {"CONV_2D", "TRANSPOSE_CONV", "MAX_POOL_2D", "RESHAPE", "RELU", "SUB", "SQUARE", "MEAN"}
+    required_ops: Set[str] = {"CONV_2D", "CONV_2D_TRANSPOSE", "RELU", "SUB", "SQUARE", "MEAN"}
 
     def sample_hyperparameters(self, trial: optuna.Trial, prefix: str = "") -> Dict[str, Any]:
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "filters": trial.suggest_categorical(f"{p}filters", [16, 32, 64]),
-            "latent_dim": trial.suggest_categorical(f"{p}latent_dim", [16, 32]),
-            "num_layers": trial.suggest_int(f"{p}num_layers", 1, 2),
-            "loss_mode": trial.suggest_categorical(f"{p}loss_mode", [int(LossMode.LOG_MSE), int(LossMode.LINEAR_MSE)]),
-            "limit": trial.suggest_float(f"{p}limit", 0.05, 0.5),
-            "skip": trial.suggest_categorical(f"{p}skip", [1, 2, 4]),
+            "filters": trial.suggest_categorical(f"{p}ca2d_filters", [16, 32, 64]),
+            "latent_dim": trial.suggest_categorical(f"{p}ca2d_latent_dim", [16, 32]),
+            "num_layers": trial.suggest_int(f"{p}ca2d_num_layers", 1, 2),
+            "loss_mode": 1,
+            "limit": trial.suggest_float(f"{p}ca2d_limit", 0.05, 0.5),
+            "skip": trial.suggest_categorical(f"{p}ca2d_skip", [1, 2, 4]),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
-        in_dim = input_bins * tsteps
-        filters = params.get("filters", 16)
+        filters = params.get("filters", 32)
         latent = params.get("latent_dim", 16)
         layers = params.get("num_layers", 2)
-        param_count = (filters * 9 + latent * (in_dim // 4)) * layers * 2
+        param_count = (filters * 3 * 3 * 2 + filters * filters * 9 + filters * latent + latent * filters) * layers
         return 1024 + param_count * 4
 
 class ConvLSTMAutoencoder(BaseArchitecture):
-    # spatio-temporal convolutional lstm autoencoder
+    # convolutional autoencoder coupled with recurrent lstm cells
     tag = ArchitectureTag.CLSTM
     model_type = ModelType.AUTOENCODER
-    required_ops: Set[str] = {
-        "CONV_2D", "TRANSPOSE_CONV", "UNIDIRECTIONAL_SEQUENCE_LSTM", "RESHAPE",
-        "FULLY_CONNECTED", "RELU", "TANH", "LOGISTIC", "MUL", "ADD", "SUB", "SQUARE", "MEAN"
-    }
+    required_ops: Set[str] = {"CONV_2D", "UNIDIRECTIONAL_SEQUENCE_LSTM", "FULLY_CONNECTED", "RELU", "TANH", "SUB", "SQUARE", "MEAN"}
 
     def sample_hyperparameters(self, trial: optuna.Trial, prefix: str = "") -> Dict[str, Any]:
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "filters": trial.suggest_categorical(f"{p}filters", [16, 32]),
-            "hidden_dim": trial.suggest_categorical(f"{p}hidden_dim", [16, 32]),
-            "latent_dim": trial.suggest_categorical(f"{p}latent_dim", [16, 32]),
-            "loss_mode": trial.suggest_categorical(f"{p}loss_mode", [int(LossMode.LOG_MSE), int(LossMode.LINEAR_MSE)]),
-            "limit": trial.suggest_float(f"{p}limit", 0.05, 0.5),
-            "skip": trial.suggest_categorical(f"{p}skip", [1, 2, 4]),
+            "filters": trial.suggest_categorical(f"{p}clstm_filters", [16, 32]),
+            "hidden_dim": trial.suggest_categorical(f"{p}clstm_hidden_dim", [16, 32]),
+            "latent_dim": trial.suggest_categorical(f"{p}clstm_latent_dim", [16, 32]),
+            "loss_mode": 1,
+            "limit": trial.suggest_float(f"{p}clstm_limit", 0.05, 0.5),
+            "skip": trial.suggest_categorical(f"{p}clstm_skip", [1, 2, 4]),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
-        in_dim = input_bins * tsteps
         filters = params.get("filters", 16)
         hidden = params.get("hidden_dim", 16)
-        param_count = (filters * 9 + hidden * hidden * 4) * 2
-        return 1024 + param_count * 4
+        latent = params.get("latent_dim", 16)
+        param_count = filters * 9 + (hidden * hidden * 4 + hidden * latent) + latent * filters
+        return 2048 + param_count * 4
 
 ALL_AUTOENCODER_ARCHS = [
     DenseAutoencoder(),
     VariationalAutoencoder(),
     Conv1DAutoencoder(),
     Conv2DAutoencoder(),
-    ConvLSTMAutoencoder()
+    ConvLSTMAutoencoder(),
 ]

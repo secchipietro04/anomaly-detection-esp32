@@ -49,12 +49,26 @@ def reset_node_volume(node_id: str) -> None:
     _volume_accumulator[node_id] = 0
 
 @router.subscribe("v1/{node_id}/data/sensor")
+@router.subscribe("v1/{node_id}/telemetry")
 async def handle_sensor_data(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
     # decode telemetry chunk and persist to timescaledb
     try:
-        seg = from_cbor(payload, Segment)
+        raw_dict = loads_cbor(payload)
+        if isinstance(raw_dict, dict):
+            seg_id = raw_dict.get("id", 0)
+            rate = float(raw_dict.get("rate", 3840.0))
+            reason = int(raw_dict.get("reason", 1))
+            chunk = int(raw_dict.get("chunk", 0))
+            raw_data = raw_dict.get("data", {})
+        else:
+            seg = from_cbor(payload, Segment)
+            seg_id = seg.id
+            rate = seg.rate
+            reason = int(seg.reason)
+            chunk = seg.chunk
+            raw_data = seg.data
     except Exception as e:
-        logger.warning(f"Failed to decode sensor segment from {node_id}: {e}")
+        logger.warning(f"Failed to decode sensor segment from {node_id}: {str(e)[:100]}")
         return
 
     # update node last seen
@@ -62,29 +76,56 @@ async def handle_sensor_data(node_id: str, payload: bytes, session: AsyncSession
     if node:
         node.last_seen = datetime.now(timezone.utc)
 
-    # insert raw telemetry
-    raw_bytes = len(payload)
-    data_dict = seg.data if isinstance(seg.data, dict) else {}
-    accel = data_dict.get("accel", {}) if isinstance(data_dict.get("accel"), dict) else {}
-    gyro = data_dict.get("gyro", {}) if isinstance(data_dict.get("gyro"), dict) else {}
+    # extract accel and gyro lists robustly
+    ax, ay, az = [], [], []
+    gx, gy, gz = [], [], []
 
+    if isinstance(raw_data, dict):
+        if "accel" in raw_data and isinstance(raw_data["accel"], dict):
+            ax = list(raw_data["accel"].get("x", []))
+            ay = list(raw_data["accel"].get("y", []))
+            az = list(raw_data["accel"].get("z", []))
+        if "gyro" in raw_data and isinstance(raw_data["gyro"], dict):
+            gx = list(raw_data["gyro"].get("x", []))
+            gy = list(raw_data["gyro"].get("y", []))
+            gz = list(raw_data["gyro"].get("z", []))
+
+        if not ax and not gx:
+            for k, v in raw_data.items():
+                if isinstance(v, (list, tuple)) and len(v) > 0:
+                    if len(ax) == 0: ax = list(v)
+                    elif len(ay) == 0: ay = list(v)
+                    elif len(az) == 0: az = list(v)
+                    elif len(gx) == 0: gx = list(v)
+                    elif len(gy) == 0: gy = list(v)
+                    elif len(gz) == 0: gz = list(v)
+                if isinstance(k, (list, tuple)) and len(k) > 0:
+                    if len(ax) == 0: ax = list(k)
+                    elif len(ay) == 0: ay = list(k)
+                    elif len(az) == 0: az = list(k)
+                    elif len(gx) == 0: gx = list(k)
+                    elif len(gy) == 0: gy = list(k)
+                    elif len(gz) == 0: gz = list(k)
+
+    raw_bytes = len(payload)
     record = RawTelemetryModel(
         node_id=node_id,
         timestamp=datetime.now(timezone.utc),
-        segment_id=seg.id,
-        chunk_id=seg.chunk,
-        sample_rate=seg.rate,
-        emit_reason=int(seg.reason),
-        accel_x=accel.get("x", []),
-        accel_y=accel.get("y", []),
-        accel_z=accel.get("z", []),
-        gyro_x=gyro.get("x", []),
-        gyro_y=gyro.get("y", []),
-        gyro_z=gyro.get("z", []),
+        segment_id=seg_id,
+        chunk_id=chunk,
+        sample_rate=rate,
+        emit_reason=reason,
+        accel_x=ax,
+        accel_y=ay,
+        accel_z=az,
+        gyro_x=gx,
+        gyro_y=gy,
+        gyro_z=gz,
         raw_bytes_count=raw_bytes
     )
     session.add(record)
     await session.commit()
+    logger.info(f"Persisted segment {seg_id} chunk {chunk} from {node_id} ({raw_bytes} bytes, samples: {len(ax)})")
 
     # in-memory volume accumulator tracking
     current_vol = await _get_or_init_volume(session, node_id)
@@ -105,6 +146,8 @@ async def handle_sensor_data(node_id: str, payload: bytes, session: AsyncSession
 @router.subscribe("v1/{node_id}/info/caps")
 async def handle_node_capabilities(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
     # strict registration on capabilities reception
+    if not payload:
+        return
     try:
         caps = from_cbor(payload, NodeCapabilities)
     except Exception as e:
@@ -124,11 +167,16 @@ async def handle_node_capabilities(node_id: str, payload: bytes, session: AsyncS
 @router.subscribe("v1/{node_id}/info/health")
 async def handle_node_health(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
     # save health heartbeat
+    if not payload:
+        return
     try:
         h = from_cbor(payload, NodeHealthInfo)
     except Exception as e:
         logger.warning(f"Failed to decode health info from {node_id}: {e}")
         return
+
+    # ensure node is registered before adding child records
+    await db_register_node(session, node_id)
 
     health = NodeHealthModel(
         node_id=node_id,
@@ -141,12 +189,6 @@ async def handle_node_health(node_id: str, payload: bytes, session: AsyncSession
         ips=h.ips or 0.0
     )
     session.add(health)
-    
-    # update node last seen
-    node = await session.get(NodeModel, node_id)
-    if node:
-        node.last_seen = datetime.now(timezone.utc)
-        
     await session.commit()
 
 @router.subscribe("v1/{node_id}/inference")
@@ -157,6 +199,9 @@ async def handle_inference_packet(node_id: str, payload: bytes, session: AsyncSe
     except Exception as e:
         logger.warning(f"Failed to decode inference packet from {node_id}: {e}")
         return
+
+    # ensure node is registered before adding child records
+    await db_register_node(session, node_id)
 
     res = InferenceResultModel(
         node_id=node_id,
@@ -190,8 +235,29 @@ async def handle_ensemble_fetch_request(node_id: str, payload: bytes, session: A
         r_m_id=ens.router_model_id or 0,
         routes=routes
     )
-    await publisher.publish_ensemble(node_id, to_cbor(cfg))
+    await publisher.publish_ensemble(node_id, to_cbor(cfg), retain=True)
     logger.info(f"Served on-demand ensemble table to sensor {node_id}")
+
+    # Also serve active router model package to node
+    if ens.router_model_id:
+        r_model = await session.get(ModelPackageModel, ens.router_model_id)
+        if r_model:
+            r_cfg = dict(r_model.config or {})
+            r_cfg["m_id"] = r_model.id
+            r_cfg["data"] = r_model.tflite_binary
+            r_cfg["type"] = r_model.model_type
+            if r_model.tag is not None:
+                r_cfg["tag"] = r_model.tag
+            r_pkg = RouterModelPackage.model_validate(r_cfg)
+            await publisher.publish_model(
+                node_id=node_id,
+                model_type="router",
+                model_id=r_model.id,
+                payload=to_cbor(r_pkg),
+                qos=1,
+                retain=True
+            )
+            logger.info(f"Served active router model {r_model.id} to sensor {node_id}")
 
 @router.subscribe("v1/{node_id}/config/fetch")
 async def handle_config_fetch_request(node_id: str, payload: bytes, session: AsyncSession, publisher: MQTTPublisher):
@@ -229,11 +295,13 @@ async def handle_model_fetch_request(node_id: str, model_type: str, model_id: st
         cfg["tag"] = model.tag
 
     try:
-        if model.model_type == int(ModelType.AUTOENCODER):
+        if model.model_type == 1:
             pkg = AutoencoderModelPackage.model_validate(cfg)
-        elif model.model_type == int(ModelType.ROUTER):
+        elif model.model_type == 2:
+            if "class_count" in cfg and "class" not in cfg:
+                cfg["class"] = cfg["class_count"]
             pkg = RouterModelPackage.model_validate(cfg)
-        elif model.model_type == int(ModelType.MEMORY):
+        elif model.model_type == 3:
             pkg = MemoryModelPackage.model_validate(cfg)
         else:
             logger.warning(f"Unknown model type {model.model_type} for model {m_id}")
@@ -246,7 +314,7 @@ async def handle_model_fetch_request(node_id: str, model_type: str, model_id: st
             model_id=m_id,
             payload=to_cbor(pkg),
             qos=1,
-            retain=False
+            retain=True
         )
         logger.info(f"Served on-demand CBOR model {m_id} ({model_type}) to sensor {node_id}")
     except Exception as e:

@@ -97,7 +97,7 @@ class ModelPackageModel(Base):
     # persistent tflite binaries and metadata
     __tablename__ = "models"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     node_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     tag: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     model_type: Mapped[int] = mapped_column(Integer) # 1=ae, 2=router, 3=memory
@@ -110,7 +110,7 @@ class EnsembleConfigModel(Base):
     # routing table and active ensemble metadata
     __tablename__ = "ensembles"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     node_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("nodes.node_id", ondelete="SET NULL"), nullable=True)
     router_model_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("models.id", ondelete="SET NULL"), nullable=True)
     memory_model_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("models.id", ondelete="SET NULL"), nullable=True)

@@ -3,6 +3,10 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 -- relational tables
 
+-- sequence for auto-incrementing model and ensemble IDs
+CREATE SEQUENCE IF NOT EXISTS model_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS ensemble_id_seq START 1;
+
 -- nodes table for registered sensors
 CREATE TABLE IF NOT EXISTS nodes (
     node_id VARCHAR(64) PRIMARY KEY,
@@ -10,7 +14,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status VARCHAR(32) NOT NULL DEFAULT 'registered',
-    current_config JSONB DEFAULT '{}'::jsonb
+    current_config JSONB DEFAULT '{}'::jsonb,
+    last_trained_segment_id BIGINT NOT NULL DEFAULT 0
 );
 
 -- node capabilities reported via v1/+/info/caps
@@ -37,7 +42,8 @@ CREATE TABLE IF NOT EXISTS node_health (
 
 -- models table for trained/deployed TFLite artifacts
 CREATE TABLE IF NOT EXISTS models (
-    id BIGINT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('model_id_seq'),
+    node_id VARCHAR(64) REFERENCES nodes(node_id) ON DELETE CASCADE,
     tag INTEGER,
     model_type INTEGER NOT NULL,
     tflite_binary BYTEA NOT NULL,
@@ -48,7 +54,7 @@ CREATE TABLE IF NOT EXISTS models (
 
 -- ensembles table for routing configurations
 CREATE TABLE IF NOT EXISTS ensembles (
-    id BIGINT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('ensemble_id_seq'),
     node_id VARCHAR(64) REFERENCES nodes(node_id) ON DELETE SET NULL,
     router_model_id BIGINT REFERENCES models(id) ON DELETE CASCADE,
     memory_model_id BIGINT REFERENCES models(id) ON DELETE SET NULL,
@@ -91,6 +97,7 @@ CREATE TABLE IF NOT EXISTS inference_results (
     autoencoder_model_id BIGINT,
     mse DOUBLE PRECISION NOT NULL,
     anomaly BOOLEAN NOT NULL,
+    inference_time_ms INTEGER,
     is_recalculated BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (node_id, timestamp, segment_id)

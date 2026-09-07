@@ -28,7 +28,7 @@ services:
       - edge-ai-network
 
   clearml_mongo:
-    image: mongo:7.0
+    image: mongo:7.0.12
     container_name: clearml_mongo
     restart: "on-failure:5"
     volumes:
@@ -42,7 +42,7 @@ services:
       - edge-ai-network
 
   clearml_redis:
-    image: redis:7.2-alpine
+    image: redis:7.2.5-alpine
     container_name: clearml_redis
     restart: "on-failure:5"
     volumes:

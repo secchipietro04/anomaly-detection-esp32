@@ -52,7 +52,7 @@ async def test_handle_model_fetch_request():
     assert call_args["node_id"] == "node_abc"
     assert call_args["model_type"] == "submodel"
     assert call_args["model_id"] == 2001
-    assert call_args["retain"] is False
+    assert call_args["retain"] is True
 
     # decode payload and verify it's a valid AutoencoderModelPackage
     decoded_pkg = from_cbor(call_args["payload"], AutoencoderModelPackage)
@@ -64,6 +64,7 @@ async def test_handle_model_fetch_request():
 @pytest.mark.asyncio
 async def test_handle_ensemble_fetch_request():
     session = AsyncMock()
+    session.get.return_value = None
     publisher = AsyncMock()
 
     mock_res = MagicMock()

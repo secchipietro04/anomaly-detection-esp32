@@ -14,9 +14,9 @@ class DenseRouter(BaseArchitecture):
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "hidden_units": trial.suggest_categorical(f"{p}hidden_units", [16, 32, 64, 128]),
-            "num_layers": trial.suggest_int(f"{p}num_layers", 1, 3),
-            "learning_rate": trial.suggest_float(f"{p}lr", 1e-4, 1e-2, log=True),
+            "hidden_units": trial.suggest_categorical(f"{p}dense_hidden_units", [16, 32, 64, 128]),
+            "num_layers": trial.suggest_int(f"{p}dense_num_layers", 1, 3),
+            "learning_rate": trial.suggest_float(f"{p}dense_lr", 1e-4, 1e-2, log=True),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
@@ -37,9 +37,9 @@ class Conv1DRouter(BaseArchitecture):
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "filters": trial.suggest_categorical(f"{p}filters", [8, 16, 32]),
-            "hidden_units": trial.suggest_categorical(f"{p}hidden_units", [16, 32, 64]),
-            "learning_rate": trial.suggest_float(f"{p}lr", 1e-4, 1e-2, log=True),
+            "filters": trial.suggest_categorical(f"{p}c1d_filters", [8, 16, 32]),
+            "hidden_units": trial.suggest_categorical(f"{p}c1d_hidden_units", [16, 32, 64]),
+            "learning_rate": trial.suggest_float(f"{p}c1d_lr", 1e-4, 1e-2, log=True),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
@@ -60,18 +60,22 @@ class STFTMCNNRouter(BaseArchitecture):
         p = f"{prefix}_" if prefix else ""
         return {
             "arch_tag": int(self.tag),
-            "branch_filters": trial.suggest_categorical(f"{p}branch_filters", [8, 16, 32]),
-            "hidden_units": trial.suggest_categorical(f"{p}hidden_units", [16, 32, 64]),
-            "learning_rate": trial.suggest_float(f"{p}lr", 1e-4, 1e-2, log=True),
+            "branch_filters": trial.suggest_categorical(f"{p}stft_branch_filters", [8, 16, 32]),
+            "hidden_units": trial.suggest_categorical(f"{p}stft_hidden_units", [16, 32, 64]),
+            "learning_rate": trial.suggest_float(f"{p}stft_lr", 1e-4, 1e-2, log=True),
         }
 
     def estimate_size(self, params: Dict[str, Any], input_bins: int, tsteps: int) -> int:
         in_dim = input_bins * tsteps
-        filters = params.get("branch_filters", 16)
+        bf = params.get("branch_filters", 16)
         hidden = params.get("hidden_units", 32)
         classes = 2
-        # 3 parallel branches with kernels 3, 5, 7
-        param_count = (filters * (3 + 5 + 7) + hidden * classes) * 2
+        # multi-branch parallel conv feature size
+        param_count = (bf * (3 + 5 + 7) + hidden * classes) * 4
         return 1024 + param_count * 4
 
-ALL_ROUTER_ARCHS = [DenseRouter(), Conv1DRouter(), STFTMCNNRouter()]
+ALL_ROUTER_ARCHS = [
+    DenseRouter(),
+    Conv1DRouter(),
+    STFTMCNNRouter(),
+]

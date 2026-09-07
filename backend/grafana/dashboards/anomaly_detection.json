@@ -5,6 +5,28 @@
   "version": 2,
   "refresh": "10s",
   "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "node_id",
+        "type": "query",
+        "label": "Sensor Node",
+        "datasource": "TimescaleDB",
+        "definition": "SELECT DISTINCT node_id AS __text, node_id AS __value FROM nodes ORDER BY 1",
+        "query": "SELECT DISTINCT node_id AS __text, node_id AS __value FROM nodes ORDER BY 1",
+        "includeAll": true,
+        "allValue": "All",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "multi": true,
+        "refresh": 1,
+        "sort": 1
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
@@ -14,21 +36,61 @@
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT timestamp AS time, node_id, mse FROM inference_results WHERE $__timeFilter(timestamp) ORDER BY timestamp",
+          "rawSql": "SELECT timestamp AS \"time\", 'MSE Score' AS \"metric\", mse AS \"value\" FROM inference_results WHERE $__timeFilter(timestamp) AND mse IS NOT NULL AND mse < 1000 AND ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY 1",
+          "format": "time_series"
+        },
+        {
+          "rawSql": "SELECT timestamp AS \"time\", 'Anomaly Flagged' AS \"metric\", CASE WHEN anomaly = true THEN mse ELSE NULL END AS \"value\" FROM inference_results WHERE $__timeFilter(timestamp) AND mse IS NOT NULL AND mse < 1000 AND ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY 1",
           "format": "time_series"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "lineWidth": 2 },
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "value": null, "color": "green" },
-              { "value": 0.1, "color": "red" }
+              { "value": 0.15, "color": "red" }
             ]
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Anomaly Flagged"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-red"
+                }
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "points"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 10
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -39,7 +101,7 @@
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT timestamp AS time, node_id, ram_free FROM node_health WHERE $__timeFilter(timestamp) ORDER BY timestamp",
+          "rawSql": "SELECT timestamp AS \"time\", node_id AS \"metric\", ram_free AS \"value\" FROM node_health WHERE $__timeFilter(timestamp) AND ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY 1",
           "format": "time_series"
         }
       ]
@@ -52,7 +114,7 @@
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT deployed_at, node_id, router_model_id, memory_model_id, total_size_bytes, routes FROM ensembles ORDER BY deployed_at DESC LIMIT 20",
+          "rawSql": "SELECT deployed_at, node_id, router_model_id, memory_model_id, total_size_bytes, routes FROM ensembles WHERE ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY deployed_at DESC LIMIT 20",
           "format": "table"
         }
       ]
@@ -65,7 +127,7 @@
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT id AS model_id, node_id, model_type, tag, size_bytes, created_at FROM models ORDER BY created_at DESC LIMIT 50",
+          "rawSql": "SELECT id AS model_id, node_id, model_type, tag, size_bytes, created_at FROM models WHERE ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY created_at DESC LIMIT 50",
           "format": "table"
         }
       ]
@@ -78,46 +140,41 @@
       "datasource": "TimescaleDB",
       "targets": [
         {
-          "rawSql": "SELECT node_id, accel_freqs, gyro_freqs, enabled_ops, updated_at FROM node_capabilities ORDER BY updated_at DESC",
+          "rawSql": "SELECT node_id, accel_freqs, gyro_freqs, enabled_ops, updated_at FROM node_capabilities WHERE ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY updated_at DESC",
           "format": "table"
         }
       ]
     },
     {
       "id": 6,
-      "title": "Raw Telemetry Volume per Sensor (Bytes)",
-      "type": "bargauge",
-      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 6 },
+      "title": "Raw Telemetry Volume",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 14, "w": 6, "h": 6 },
       "datasource": "TimescaleDB",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
       "targets": [
         {
-          "rawSql": "SELECT node_id, SUM(raw_bytes_count) AS total_bytes FROM raw_telemetry GROUP BY node_id ORDER BY total_bytes DESC",
+          "rawSql": "SELECT SUM(raw_bytes_count) AS \"value\" FROM raw_telemetry WHERE ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote}))",
           "format": "table"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "Edge Inference Execution Time (ms)",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
-      "datasource": "TimescaleDB",
-      "targets": [
-        {
-          "rawSql": "SELECT timestamp AS time, node_id, inference_time_ms FROM inference_results WHERE inference_time_ms IS NOT NULL AND $__timeFilter(timestamp) ORDER BY timestamp",
-          "format": "time_series"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ms",
-          "custom": { "lineWidth": 2 },
+          "unit": "decbytes",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "value": null, "color": "green" },
-              { "value": 50, "color": "yellow" },
-              { "value": 100, "color": "red" }
+              { "value": null, "color": "blue" }
             ]
           }
         }
@@ -125,13 +182,24 @@
     },
     {
       "id": 8,
-      "title": "Average Inference Latency by Submodel (Efficiency)",
-      "type": "bargauge",
-      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "title": "Average Inference Latency",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 14, "w": 6, "h": 6 },
       "datasource": "TimescaleDB",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
       "targets": [
         {
-          "rawSql": "SELECT CONCAT('Model #', autoencoder_model_id) AS metric, AVG(inference_time_ms) AS avg_time_ms FROM inference_results WHERE inference_time_ms IS NOT NULL GROUP BY autoencoder_model_id ORDER BY avg_time_ms ASC",
+          "rawSql": "SELECT AVG(inference_time_ms) AS \"value\" FROM inference_results WHERE inference_time_ms IS NOT NULL AND $__timeFilter(timestamp) AND ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote}))",
           "format": "table"
         }
       ],
@@ -141,12 +209,71 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "value": null, "color": "green" },
-              { "value": 40, "color": "yellow" },
-              { "value": 80, "color": "red" }
+              { "value": null, "color": "blue" }
             ]
           }
         }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Edge Inference Execution Time (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 7 },
+      "datasource": "TimescaleDB",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp AS \"time\", node_id AS \"metric\", inference_time_ms AS \"value\" FROM inference_results WHERE inference_time_ms IS NOT NULL AND $__timeFilter(timestamp) AND ('All' IN (${node_id:singlequote}) OR node_id IN (${node_id:singlequote})) ORDER BY 1",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 150, "color": "yellow" },
+              { "value": 500, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Sensor Control, Recalculator & Dataset Curator Console",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 27, "w": 12, "h": 9 },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-family: sans-serif; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;\">\n  <h4 style=\"margin-top:0; color: #5794F2;\">⚡ Sensor Downlink & Command Center</h4>\n  <div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;\">\n    <button style=\"padding: 7px; background: #2E7D32; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:1, rate:3840.0, beat:5, batch:3072, sd_en:true})}).then(()=>alert('Mode 1: Continuous Deployed!'))\">Mode 1: Continuous</button>\n    <button style=\"padding: 7px; background: #E65100; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:2, rate:3840.0, beat:5, batch:3072, sd_en:true})}).then(()=>alert('Mode 2: Anomaly Only Deployed!'))\">Mode 2: Anomaly Only</button>\n    <button style=\"padding: 7px; background: #0288D1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:3, rate:3840.0, beat:5, batch:3072, sd_en:true, cad:10})}).then(()=>alert('Mode 3: Periodic Deployed!'))\">Mode 3: Periodic (1/10)</button>\n    <button style=\"padding: 7px; background: #6A1B9A; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:4, rate:3840.0, beat:5, batch:3072, sd_en:true})}).then(()=>alert('Mode 4: Continuous Score Deployed!'))\">Mode 4: Score Only</button>\n  </div>\n  <div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;\">\n    <button style=\"padding: 6px; background: #C62828; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;\" onclick=\"if(confirm('Riavviare ESP32?')) fetch('http://localhost:30900/api/sensors/${node_id}/cmd/reboot', {method:'POST'}).then(()=>alert('Comando Reboot Inviato!'))\">🔄 Riavvia ESP32</button>\n    <button style=\"padding: 6px; background: #1565C0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/cmd/updt_status', {method:'POST'}).then(()=>alert('Richiesta Status/Health Inviata!'))\">📡 Richiedi Status/Health</button>\n  </div>\n  <hr style=\"border: 1px solid rgba(255,255,255,0.1); margin: 8px 0;\">\n  <h4 style=\"margin: 4px 0; color: #E53935;\">🏷️ Dataset Curator: Tagging & Training Exclusion</h4>\n  <div style=\"display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;\">\n    <button style=\"padding: 7px; background: #C62828; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/flag-range', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({from_time_ms:${__from}, to_time_ms:${__to}, is_anomaly:true, exclude_from_training:true})}).then(r=>r.json()).then(d=>alert('🚫 Marcati '+d.updated_segments_count+' segmenti come ANOMALIA.\\nEsclusi al 100% dal Training Set dei buoni!')).catch(e=>alert('Errore: '+e))\">🚫 Escludi Selezione da Training (Anomalia)</button>\n    <button style=\"padding: 7px; background: #2E7D32; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;\" onclick=\"fetch('http://localhost:30900/api/sensors/${node_id}/flag-range', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({from_time_ms:${__from}, to_time_ms:${__to}, is_anomaly:false, exclude_from_training:false})}).then(r=>r.json()).then(d=>alert('✅ Marcati '+d.updated_segments_count+' segmenti come NOMINALI.\\nInclusi nel Training Set!')).catch(e=>alert('Errore: '+e))\">✅ Includi Selezione in Training (Buoni)</button>\n  </div>\n  <hr style=\"border: 1px solid rgba(255,255,255,0.1); margin: 8px 0;\">\n  <h4 style=\"margin: 4px 0; color: #73BF69;\">🔄 On-Demand Local Recalculator</h4>\n  <div style=\"display: flex; gap: 8px; align-items: center; flex-wrap: wrap;\">\n    <input type=\"number\" id=\"recalc_thresh\" step=\"0.01\" value=\"0.15\" placeholder=\"Threshold\" style=\"padding: 5px; width: 80px; background: #181B1F; color: white; border: 1px solid #444; border-radius: 4px; font-size: 12px;\">\n    <button style=\"padding: 5px 12px; background: #388E3C; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;\" onclick=\"const t=parseFloat(document.getElementById('recalc_thresh').value)||0.15; fetch('http://localhost:30900/api/recalculate/range', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({node_id:'${node_id}', from_time_ms:${__from}, to_time_ms:${__to}, anomaly_threshold:t})}).then(r=>r.json()).then(d=>alert('Ricalcolo completato!\\nSegmenti: '+d.recalculated_count+'\\nAnomalie: '+d.anomalies_detected+'\\nMSE: '+d.avg_mse.toFixed(4))).catch(e=>alert('Errore ricalcolo: '+e))\">⚡ Ricalcola Intervallo Attivo</button>\n  </div>\n</div>"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Raw Input Vibration STFT Spectrogram (Time-Frequency Heatmap)",
+      "type": "text",
+      "gridPos": { "x": 12, "y": 27, "w": 12, "h": 9 },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-family: sans-serif; height: 100%; display: flex; flex-direction: column;\">\n  <div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;\">\n    <span id=\"stft_info\" style=\"font-size: 11px; color: #aaa;\"><b>X:</b> Full Time Range | <b>Y:</b> Freq (0-1.9kHz, Accel+Gyro)</span>\n    <button style=\"padding: 3px 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px; cursor: pointer; font-size: 11px;\" onclick=\"loadSTFT()\">Aggiorna</button>\n  </div>\n  <canvas id=\"stft_canvas\" width=\"400\" height=\"180\" style=\"width: 100%; height: 175px; background: #000; border-radius: 4px;\"></canvas>\n  <script>\n    function turboColor(t) {\n      t = Math.max(0, Math.min(1, t));\n      const r = Math.floor(255 * (0.135 + 4.5*t - 15.0*t*t + 16.0*t*t*t));\n      const g = Math.floor(255 * (0.091 + 2.1*t + 3.3*t*t - 5.5*t*t*t));\n      const b = Math.floor(255 * (0.106 + 8.5*t - 24.0*t*t + 16.0*t*t*t));\n      return [Math.max(0,Math.min(255,r)), Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b))];\n    }\n    function loadSTFT() {\n      const c = document.getElementById('stft_canvas');\n      const info = document.getElementById('stft_info');\n      if (!c) return;\n      const ctx = c.getContext('2d');\n      fetch('http://localhost:30900/api/sensors/${node_id}/stft-spectrogram?from_time_ms=' + ${__from} + '&to_time_ms=' + ${__to})\n        .then(r => r.json())\n        .then(data => {\n          if (!data.spectrogram || !data.spectrogram.length) return;\n          const spec = data.spectrogram;\n          const nFrames = spec.length;\n          const nBins = spec[0].length;\n          if (info) info.innerHTML = '<b>' + (data.total_samples || 0) + '</b> punti grezzi (' + nFrames + ' frame temporali)';\n          const W = c.width, H = c.height;\n          ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);\n          const cellW = W / nFrames;\n          const cellH = H / nBins;\n          let maxVal = 0.5;\n          for (let f = 0; f < nFrames; f++) {\n            for (let b = 0; b < nBins; b++) {\n              if (spec[f][b] > maxVal) maxVal = spec[f][b];\n            }\n          }\n          for (let f = 0; f < nFrames; f++) {\n            for (let b = 0; b < nBins; b++) {\n              const val = Math.min(1.0, spec[f][b] / maxVal);\n              const [r, g, bl] = turboColor(val);\n              ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + bl + ')';\n              ctx.fillRect(f * cellW, H - (b + 1) * cellH, cellW + 1, cellH + 1);\n            }\n          }\n        }).catch(e => console.error(e));\n    }\n    setTimeout(loadSTFT, 500);\n  </script>\n</div>"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Noise Resilience & Anomaly Rise Spectrogram (Base-2 Logarithmic Noise: 2^-6 to 2^4)",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 9 },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"font-family: sans-serif; height: 100%; display: flex; flex-direction: column; padding: 4px;\">\n  <div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;\">\n    <div>\n      <span style=\"font-weight: bold; color: #5794F2;\">Logarithmic Noise Benchmark Heatmap (Rotated 90&deg;):</span>\n      <span style=\"font-size: 12px; color: #aaa; margin-left: 8px;\"><b>X:</b> Noise Power (Left: 2^-6 &rarr; Right: 2^+4) | <b>Y:</b> Frequency Bins (Bottom: 0 &rarr; Top: 256) | <b>Color:</b> Anomaly Delta Rise</span>\n    </div>\n    <button style=\"padding: 4px 12px; background: #E65100; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;\" onclick=\"loadNoiseHeatmap()\">Esegui Benchmark Spettro Rumore</button>\n  </div>\n  <canvas id=\"noise_canvas\" width=\"600\" height=\"180\" style=\"width: 100%; height: 180px; background: #111; border-radius: 4px;\"></canvas>\n  <div id=\"noise_stats\" style=\"font-size: 12px; color: #88D; margin-top: 6px;\"></div>\n  <script>\n    function turboColor(t) {\n      t = Math.max(0, Math.min(1, t));\n      const r = Math.floor(255 * (0.135 + 4.5*t - 15.0*t*t + 16.0*t*t*t));\n      const g = Math.floor(255 * (0.091 + 2.1*t + 3.3*t*t - 5.5*t*t*t));\n      const b = Math.floor(255 * (0.106 + 8.5*t - 24.0*t*t + 16.0*t*t*t));\n      return [Math.max(0,Math.min(255,r)), Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b))];\n    }\n    function loadNoiseHeatmap() {\n      const c = document.getElementById('noise_canvas');\n      const stats = document.getElementById('noise_stats');\n      if (!c) return;\n      const ctx = c.getContext('2d');\n      stats.innerHTML = 'Calcolo benchmark in corso...';\n      fetch('http://localhost:30900/api/sensors/${node_id}/noise-spectrogram')\n        .then(r => r.json())\n        .then(data => {\n          if (!data.sensitivity_spectrogram || !data.sensitivity_spectrogram.length) return;\n          const mat = data.sensitivity_spectrogram;\n          const nLevels = mat.length;\n          const nBins = mat[0].length;\n          const W = c.width, H = c.height;\n          ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);\n          const cellW = W / nLevels;\n          const cellH = H / nBins;\n          let maxVal = 1e-4;\n          for (let l = 0; l < nLevels; l++) {\n            for (let b = 0; b < nBins; b++) {\n              if (mat[l][b] > maxVal) maxVal = mat[l][b];\n            }\n          }\n          for (let l = 0; l < nLevels; l++) {\n            for (let b = 0; b < nBins; b++) {\n              const delta = Math.min(1.0, mat[l][b] / maxVal);\n              const [r, g, bl] = turboColor(delta);\n              ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + bl + ')';\n              ctx.fillRect(l * cellW, H - (b + 1) * cellH, cellW + 1, cellH + 1);\n            }\n          }\n          stats.innerHTML = '<b>Baseline MSE:</b> ' + data.metrics.avg_baseline_score.toExponential(3) + ' | <b>Max &Delta;MSE Rise:</b> +' + maxVal.toFixed(4) + ' | <b>Critical Noise:</b> ' + (data.metrics.critical_noise_threshold_nsr*100).toFixed(1) + '% (2^' + data.metrics.critical_noise_power_2.toFixed(1) + ') | <b>Most Sensitive Bins:</b> ' + data.metrics.most_sensitive_bins.join(', ');\n        }).catch(e => { stats.innerHTML = 'Errore nel benchmark: ' + e; });\n    }\n    setTimeout(loadNoiseHeatmap, 800);\n  </script>\n</div>"
       }
     }
   ]

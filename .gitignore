@@ -15,5 +15,8 @@ report/report.toc
 .vscode/
 research-ml-edge.code-workspace
 firmware/.clangd
-firmware/main/cbor/*
+firmware/main/cbor/gen/*
 
+firmware/main/nvs.csv
+TODO.md
+.env

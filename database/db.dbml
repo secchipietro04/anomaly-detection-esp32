@@ -1,56 +1,137 @@
 
 
-Table "sensor" {
-  "id" INT [pk]
-  "settings" VARCHAR(1024)
+// Production TimescaleDB Schema for Edge-AI Vibration Anomaly Detection Platform
+
+Table nodes {
+  node_id varchar(64) [pk]
+  name varchar(128)
+  registered_at timestamptz [default: `now()`]
+  last_seen timestamptz [default: `now()`]
+  status varchar(32) [default: 'registered']
+  current_config jsonb
+  last_trained_segment_id bigint [default: 0]
+
+  Note: 'Sensor registry and runtime state'
 }
 
-Table "datapoint_schema" {
-  "schema_name" VARCHAR(255) [pk]
-  "description" TEXT
-  "definition" TEXT [not null] //csv
+Table node_capabilities {
+  node_id varchar(64) [pk]
+  accel_freqs "float[]"
+  gyro_freqs "float[]"
+  enabled_ops "varchar[]"
+  updated_at timestamptz [default: `now()`]
+
+  Note: 'Hardware sensor sample rates and compiled TFLite Micro ops'
 }
 
-Table "datapoint" {
-  "id" INT [pk]
-  "from_time" TIMESTAMP
-  "to_time" TIMESTAMP
-  "sensor_id" INT [not null]
-  "datapoint_schema" varchar(255) [not null]
-  "data" TEXT //csv
-}
-
-Table "ensemble" {
-  "id" INT [pk]
-  "timestamp_training_date" TIMESTAMP
-  "type" VARCHAR(100)
-  "sensibility" REAL
-}
-
-Table "model" {
-  "id" INT [pk]
-  "model_data" BYTEA
-  "info" TEXT
-}
-
-Table "result" {
-  "timestamp" TIMESTAMP
-  "score" NUMERIC
-  "alert" BOOLEAN
-  "sensor_id" INT [not null]
-  "model_id" INT [not null]
+Table node_health {
+  id bigint [pk, increment]
+  node_id varchar(64) [not null]
+  timestamp timestamptz [not null, default: `now()`]
+  ram_free bigint [default: 0]
+  sd_status int [default: 0]
+  cached_models "int[]"
+  last_segment_id bigint [default: 0]
+  status varchar(32) [default: 'idle']
+  ips float [default: 0.0]
 
   Indexes {
-    (sensor_id, model_id, timestamp) [pk]
+    node_id
+    timestamp
   }
+
+  Note: 'Periodic health reports and heartbeat (IPS, RAM, SD status)'
 }
 
-Ref: "sensor"."id" < "datapoint"."sensor_id" [delete: cascade]
+Table raw_telemetry {
+  id bigint [pk, increment]
+  node_id varchar(64) [not null]
+  timestamp timestamptz [not null, default: `now()`]
+  segment_id bigint [not null]
+  chunk_id int [default: 1]
+  sample_rate float [default: 0.0]
+  emit_reason int [default: 0]
+  accel_x "float[]"
+  accel_y "float[]"
+  accel_z "float[]"
+  gyro_x "float[]"
+  gyro_y "float[]"
+  gyro_z "float[]"
+  raw_bytes_count int [default: 0]
+  created_at timestamptz [default: `now()`]
 
-Ref: "datapoint_schema"."schema_name" < "datapoint"."datapoint_schema" [delete: restrict]
+  Indexes {
+    (node_id, segment_id)
+    timestamp
+  }
 
-Ref: "ensemble"."id" < "model"."id" [delete: cascade]
+  Note: 'TimescaleDB Hypertable: raw 6-axis IMU vibration data chunked at 1024 samples'
+}
 
-Ref: "sensor"."id" < "result"."sensor_id" [delete: cascade]
+Table inference_results {
+  id bigint [pk, increment]
+  node_id varchar(64) [not null]
+  timestamp timestamptz [not null, default: `now()`]
+  segment_id bigint [not null]
+  emit_reason int [default: 0]
+  router_model_id bigint
+  autoencoder_model_id bigint
+  mse float [default: 0.0]
+  anomaly boolean [default: false]
+  inference_time_ms int
+  is_recalculated boolean [default: false]
+  created_at timestamptz [default: `now()`]
 
-Ref: "ensemble"."id" < "result"."model_id" [delete: cascade]
+  Indexes {
+    (node_id, segment_id)
+    timestamp
+  }
+
+  Note: 'TimescaleDB Hypertable: edge inference scores and local backend recalculations'
+}
+
+Table models {
+  id bigint [pk, increment]
+  node_id varchar(64)
+  tag int
+  model_type int [not null, note: '1=autoencoder, 2=router, 3=memory']
+  tflite_binary bytea [not null]
+  size_bytes int [default: 0]
+  config jsonb
+  created_at timestamptz [default: `now()`]
+
+  Indexes {
+    node_id
+    model_type
+  }
+
+  Note: 'Compiled TFLite flatbuffers and architectural metadata'
+}
+
+Table ensembles {
+  id bigint [pk, increment]
+  node_id varchar(64)
+  router_model_id bigint
+  memory_model_id bigint
+  warmup int [default: 0]
+  routes jsonb [default: '[]', note: 'Array of route entries: out_ix -> m_id']
+  total_size_bytes int [default: 0]
+  deployed_at timestamptz [default: `now()`]
+
+  Indexes {
+    node_id
+    deployed_at
+  }
+
+  Note: 'Active ensemble routing tables and submodel links'
+}
+
+// Foreign Key Relationships
+Ref: nodes.node_id < node_capabilities.node_id [delete: cascade]
+Ref: nodes.node_id < node_health.node_id [delete: cascade]
+Ref: nodes.node_id < raw_telemetry.node_id [delete: cascade]
+Ref: nodes.node_id < inference_results.node_id [delete: cascade]
+Ref: nodes.node_id < models.node_id [delete: set null]
+Ref: nodes.node_id < ensembles.node_id [delete: set null]
+Ref: models.id < ensembles.router_model_id [delete: set null]
+Ref: models.id < ensembles.memory_model_id [delete: set null]

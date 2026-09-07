@@ -4,7 +4,7 @@ include:
 services:
 
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.16.1-pg16
     container_name: tsdb
     restart: "on-failure:5"
     environment:
@@ -17,7 +17,7 @@ services:
       - tsdb_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-emqx} -d ${POSTGRES_DB:-emqx}"]
+      test: ["CMD", "pg_isready", "-U", "emqx", "-d", "emqx"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,6 +62,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
+      CLEARML_API_HOST: http://clearml_apiserver:8008
+      CLEARML_WEB_HOST: http://clearml_webserver:80
+      CLEARML_FILES_HOST: http://clearml_fileserver:8081
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +89,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-emqx}
       MQTT_BROKER: emqx
       MQTT_PORT: 1883
+    volumes:
+      - ./backend/app:/app/app:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,6 +121,8 @@ services:
       CLEARML_API_HOST: http://clearml_apiserver:8008
       CLEARML_WEB_HOST: http://clearml_webserver:80
       CLEARML_FILES_HOST: http://clearml_fileserver:8081
+    volumes:
+      - ./backend/app:/app/app:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -134,6 +141,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PANELS_DISABLE_SANITIZE_HTML: "true"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro

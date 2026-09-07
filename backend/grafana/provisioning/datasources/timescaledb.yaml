@@ -1,12 +1,13 @@
 apiVersion: 1
 datasources:
   - name: TimescaleDB
+    uid: TimescaleDB
     type: postgres
     url: postgres:5432
-    database: ${POSTGRES_DB:-emqx}
-    user: ${POSTGRES_USER:-emqx}
+    database: emqx
+    user: emqx
     secureJsonData:
-      password: ${POSTGRES_PASSWORD:-emqx}
+      password: emqx
     jsonData:
       sslmode: disable
       postgresVersion: 1600

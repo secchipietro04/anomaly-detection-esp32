@@ -2,6 +2,7 @@
 import os
 import logging
 import tempfile
+from datetime import datetime, timezone
 from typing import Optional, List, Tuple, Dict, Any
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from sqlalchemy import select, func
 
 from app.database.models import RawTelemetryModel, ModelPackageModel, EnsembleConfigModel, InferenceResultModel
 from app.database.session import get_db_session
+from app.nas.dsp import compute_segment_spectrogram
 
 logger = logging.getLogger("recalculator")
 
@@ -20,29 +22,36 @@ def _build_input_window(
     accel_bins: int = 128,
     gyro_bins: int = 128
 ) -> Optional[np.ndarray]:
-    # assemble temporal window from telemetry chunks
-    freq_bins = accel_bins + gyro_bins
-    frames = []
-    for chunk in chunks[:tsteps]:
-        ax = list(chunk.accel_x)[:accel_bins // 3]
-        ay = list(chunk.accel_y)[:accel_bins // 3]
-        az = list(chunk.accel_z)[:accel_bins - len(ax) - len(ay)]
-        gx = list(chunk.gyro_x)[:gyro_bins // 3]
-        gy = list(chunk.gyro_y)[:gyro_bins // 3]
-        gz = list(chunk.gyro_z)[:gyro_bins - len(gx) - len(gy)]
-
-        frame = ax + ay + az + gx + gy + gz
-        if len(frame) < freq_bins:
-            frame += [0.0] * (freq_bins - len(frame))
-        frames.append(frame[:freq_bins])
-
-    if not frames:
+    if not chunks:
         return None
 
-    while len(frames) < tsteps:
-        frames.insert(0, [0.0] * freq_bins)
+    # sort chunks by chunk_id
+    sorted_chunks = sorted(chunks, key=lambda c: getattr(c, "chunk_id", 0))
 
-    return np.array(frames, dtype=np.float32)
+    ax = np.concatenate([c.accel_x for c in sorted_chunks if c.accel_x]) if sorted_chunks else np.array([])
+    ay = np.concatenate([c.accel_y for c in sorted_chunks if c.accel_y]) if sorted_chunks else np.array([])
+    az = np.concatenate([c.accel_z for c in sorted_chunks if c.accel_z]) if sorted_chunks else np.array([])
+    gx = np.concatenate([c.gyro_x for c in sorted_chunks if c.gyro_x]) if sorted_chunks else np.array([])
+    gy = np.concatenate([c.gyro_y for c in sorted_chunks if c.gyro_y]) if sorted_chunks else np.array([])
+    gz = np.concatenate([c.gyro_z for c in sorted_chunks if c.gyro_z]) if sorted_chunks else np.array([])
+
+    freq_bins = accel_bins + gyro_bins
+    if len(ax) == 0:
+        return np.zeros((tsteps, freq_bins), dtype=np.float32)
+
+    # compute true STFT spectrogram matching firmware
+    spec = compute_segment_spectrogram(
+        ax, ay, az, gx, gy, gz,
+        accel_bins=accel_bins,
+        gyro_bins=gyro_bins
+    )
+
+    if len(spec) >= tsteps:
+        return spec[:tsteps].astype(np.float32)
+    else:
+        padded = np.zeros((tsteps, freq_bins), dtype=np.float32)
+        padded[-len(spec):] = spec
+        return padded
 
 def _invoke_tflite_raw(model_binary: bytes, input_arr: np.ndarray) -> np.ndarray:
     # run tflite interpreter or fallback simulation
@@ -74,10 +83,15 @@ def _invoke_tflite_raw(model_binary: bytes, input_arr: np.ndarray) -> np.ndarray
     finally:
         os.unlink(tmp_path)
 
-def _run_tflite_inference(model_binary: bytes, input_arr: np.ndarray) -> float:
+def _run_tflite_inference(model_binary: bytes, input_arr: np.ndarray, loss_mode: int = 1) -> float:
     output = _invoke_tflite_raw(model_binary, input_arr)
     last_frame = input_arr[-1]
     out_last = output.flatten()[-len(last_frame):]
+    if loss_mode == 1:
+        # exact LogMSE: (log(1 + |x|) - log(1 + |x_hat|))^2
+        log_in = np.log1p(np.abs(last_frame))
+        log_out = np.log1p(np.abs(out_last))
+        return float(np.mean((log_in - log_out) ** 2))
     return float(np.mean((last_frame - out_last) ** 2))
 
 def run_ensemble_inference_on_window(
@@ -111,22 +125,19 @@ def run_ensemble_inference_on_window(
         r_bin = model_binaries[ensemble.router_model_id]
         r_out = _invoke_tflite_raw(r_bin, input_arr).flatten()
         
-        # calculate softmax
-        exp_logits = np.exp(r_out - np.max(r_out))
-        probs = exp_logits / np.sum(exp_logits)
-        best_mode = int(np.argmax(probs))
-        best_prob = float(probs[best_mode])
+        num_routes = len(ensemble.routes or [])
+        if num_routes > 0:
+            route_logits = r_out[:num_routes] if len(r_out) >= num_routes else r_out
+            exp_logits = np.exp(route_logits - np.max(route_logits))
+            probs = exp_logits / np.sum(exp_logits)
+            best_mode = int(np.argmax(probs))
+            best_prob = float(probs[best_mode])
 
-        # check router anomaly threshold
-        if best_prob < ROUTER_CONFIDENCE_THRESHOLD:
-            # classified as anomaly directly by router
-            return float(1.0 - best_prob), True, ensemble.router_model_id, None, h_state, c_state
-
-        # resolve submodel from routing table
-        for r in ensemble.routes or []:
-            if r.get("out_ix") == best_mode:
-                chosen_ae_id = r.get("m_id")
-                break
+            # resolve submodel from routing table
+            for r in ensemble.routes or []:
+                if r.get("out_idx", r.get("out_ix")) == best_mode:
+                    chosen_ae_id = r.get("m_id")
+                    break
 
     # fallback to first route or default submodel
     if chosen_ae_id is None and ensemble.routes:
@@ -136,14 +147,15 @@ def run_ensemble_inference_on_window(
     if chosen_ae_id and chosen_ae_id in model_binaries:
         ae_bin = model_binaries[chosen_ae_id]
         ae_cfg = model_configs.get(chosen_ae_id, {})
-        limit = float(ae_cfg.get("limit", 0.1))
-        mse = _run_tflite_inference(ae_bin, input_arr)
+        limit = float(ae_cfg.get("limit", 0.15))
+        loss_mode = int(ae_cfg.get("loss_mode", 1))
+        mse = _run_tflite_inference(ae_bin, input_arr, loss_mode=loss_mode)
         is_anomaly = mse > limit
         return mse, is_anomaly, ensemble.router_model_id, chosen_ae_id, h_state, c_state
 
     # fallback calculation if no ae model loaded
-    mse = float(np.mean(input_arr[-1] ** 2))
-    return mse, (mse > 0.1), ensemble.router_model_id, chosen_ae_id, h_state, c_state
+    mse = float(np.mean(np.log1p(np.abs(input_arr[-1])) ** 2))
+    return mse, mse > 0.15, ensemble.router_model_id, None, h_state, c_state
 
 async def recalculate_segment(
     session: AsyncSession,
@@ -210,32 +222,82 @@ async def recalculate_segment(
             ensemble, model_bins, model_cfgs, input_arr
         )
 
-    # update or insert into inference_results
-    stmt_inf = select(InferenceResultModel).where(
-        InferenceResultModel.node_id == node_id,
-        InferenceResultModel.segment_id == segment_id
+async def recalculate_time_range(
+    session: AsyncSession,
+    node_id: str,
+    from_time_ms: Optional[int] = None,
+    to_time_ms: Optional[int] = None,
+    from_time_str: Optional[str] = None,
+    to_time_str: Optional[str] = None,
+    autoencoder_model_id: Optional[int] = None,
+    anomaly_threshold: float = 0.15,
+    tsteps: int = 8
+) -> Dict[str, Any]:
+    # recalculates all raw segments in the given time window
+    conditions = [RawTelemetryModel.node_id == node_id]
+    if from_time_ms is not None:
+        dt_from = datetime.fromtimestamp(from_time_ms / 1000.0, tz=timezone.utc)
+        conditions.append(RawTelemetryModel.timestamp >= dt_from)
+    elif from_time_str is not None:
+        try:
+            dt_from = datetime.fromisoformat(from_time_str.replace("Z", "+00:00"))
+            conditions.append(RawTelemetryModel.timestamp >= dt_from)
+        except Exception:
+            pass
+
+    if to_time_ms is not None:
+        dt_to = datetime.fromtimestamp(to_time_ms / 1000.0, tz=timezone.utc)
+        conditions.append(RawTelemetryModel.timestamp <= dt_to)
+    elif to_time_str is not None:
+        try:
+            dt_to = datetime.fromisoformat(to_time_str.replace("Z", "+00:00"))
+            conditions.append(RawTelemetryModel.timestamp <= dt_to)
+        except Exception:
+            pass
+
+    stmt_segs = (
+        select(RawTelemetryModel.segment_id)
+        .where(*conditions)
+        .group_by(RawTelemetryModel.segment_id)
+        .order_by(RawTelemetryModel.segment_id.asc())
     )
-    res_inf = await session.execute(stmt_inf)
-    inf = res_inf.scalar_one_or_none()
-    if inf:
-        inf.mse = mse
-        inf.anomaly = anomaly
-        inf.is_recalculated = True
-        inf.router_model_id = r_id
-        inf.autoencoder_model_id = ae_id
-    else:
-        inf = InferenceResultModel(
-            node_id=node_id,
-            segment_id=segment_id,
-            mse=mse,
-            anomaly=anomaly,
-            is_recalculated=True,
-            router_model_id=r_id,
-            autoencoder_model_id=ae_id
-        )
-        session.add(inf)
-    await session.commit()
-    return mse, anomaly
+    res_segs = await session.execute(stmt_segs)
+    seg_ids = list(res_segs.scalars().all())
+
+    if not seg_ids:
+        raise ValueError(f"No raw segments found for node '{node_id}' in the specified time window")
+
+    recalc_count = 0
+    anomalies_count = 0
+    scores = []
+
+    for sid in seg_ids:
+        try:
+            mse, is_anom = await recalculate_segment(
+                session=session,
+                node_id=node_id,
+                segment_id=sid,
+                autoencoder_model_id=autoencoder_model_id,
+                anomaly_threshold=anomaly_threshold,
+                tsteps=tsteps
+            )
+            recalc_count += 1
+            if is_anom:
+                anomalies_count += 1
+            scores.append(mse)
+        except Exception as e:
+            logger.warning(f"Failed recalculating segment {sid}: {e}")
+
+    return {
+        "node_id": node_id,
+        "total_segments_in_range": len(seg_ids),
+        "recalculated_count": recalc_count,
+        "anomalies_detected": anomalies_count,
+        "avg_mse": float(np.mean(scores)) if scores else 0.0,
+        "min_mse": float(np.min(scores)) if scores else 0.0,
+        "max_mse": float(np.max(scores)) if scores else 0.0
+    }
+
 
 async def test_noise_resilience(
     session: AsyncSession,
@@ -278,7 +340,7 @@ async def test_noise_resilience(
     stmt_segs = (
         select(RawTelemetryModel.segment_id)
         .where(RawTelemetryModel.node_id == node_id)
-        .distinct()
+        .group_by(RawTelemetryModel.segment_id)
         .order_by(func.random())
         .limit(num_sample_segments)
     )
@@ -290,9 +352,10 @@ async def test_noise_resilience(
     # 3. build input windows for all sample segments
     sample_windows: List[np.ndarray] = []
     for sid in seg_ids:
+        seg_id = getattr(sid, "segment_id", sid)
         stmt_raw = (
             select(RawTelemetryModel)
-            .where(RawTelemetryModel.node_id == node_id, RawTelemetryModel.segment_id == sid)
+            .where(RawTelemetryModel.node_id == node_id, RawTelemetryModel.segment_id == seg_id)
             .order_by(RawTelemetryModel.chunk_id.asc())
         )
         res_raw = await session.execute(stmt_raw)
@@ -306,43 +369,62 @@ async def test_noise_resilience(
 
     total_bins = sample_windows[0].shape[-1]
     
-    # base-2 noise levels: from 2^-10 (~0.1%) to 2^0 (100%)
+    # base-2 noise levels: from 2^-6 (~1.5%) to 2^4 (1600%)
+    if min_power_2 == -10.0 and max_power_2 == 0.0:
+        min_power_2 = -6.0
+        max_power_2 = 4.0
     powers_of_2 = np.linspace(min_power_2, max_power_2, num_noise_levels)
     noise_levels = np.power(2.0, powers_of_2).tolist()
 
-    # 4. compute baseline anomaly scores
+    # 4. compute baseline anomaly scores and baseline reconstructions across full temporal window
+    sample_stack = np.array(sample_windows, dtype=np.float32) # (N, tsteps, bins)
     baseline_scores = []
-    for w in sample_windows:
-        mse, _, _, _, _, _ = run_ensemble_inference_on_window(
+    baseline_reconstructions = []
+    for w in sample_stack:
+        mse, _, _, ae_id, _, _ = run_ensemble_inference_on_window(
             ensemble, model_bins, model_cfgs, w
         )
         baseline_scores.append(mse)
-    avg_baseline_score = float(np.mean(baseline_scores))
+        # compute normal reconstruction across temporal frames
+        if ae_id and ae_id in model_bins:
+            out_flat = _invoke_tflite_raw(model_bins[ae_id], w).flatten()
+            if len(out_flat) >= total_bins * tsteps:
+                out_w = out_flat[-total_bins * tsteps:].reshape((tsteps, total_bins))
+            else:
+                out_w = np.tile(out_flat[-total_bins:], (tsteps, 1))
+        else:
+            out_w = w * 0.95
+        baseline_reconstructions.append(out_w)
 
-    # 5. generate 2D sensitivity matrix: shape (num_noise_levels, total_bins)
-    # X-axis = frequency bins (0 to total_bins-1)
-    # Y-axis = noise level in base-2 (2^-10 to 2^0)
-    # Color = average delta anomaly score across sample segments
+    avg_baseline_score = float(np.mean(baseline_scores))
+    base_recs_window = np.array(baseline_reconstructions, dtype=np.float32) # (N, tsteps, bins)
+    bin_means = np.maximum(np.mean(np.abs(sample_stack), axis=(0, 1)), 0.1) # (bins,)
+
+    # 5. fast vectorized 2D sensitivity matrix across full temporal window: shape (num_noise_levels, total_bins)
+    # X-axis = noise level in base-2 (2^-6 to 2^4)
+    # Y-axis = frequency bins (0 to total_bins-1)
+    # Color = delta anomaly score against full temporal baseline reconstruction
     sensitivity_matrix = np.zeros((num_noise_levels, total_bins), dtype=np.float32)
 
-    for bin_idx in range(total_bins):
-        for lvl_idx, nsr in enumerate(noise_levels):
-            deltas = []
-            for w in sample_windows:
-                noisy_w = np.copy(w)
-                std_dev = np.std(w[:, bin_idx]) + 1e-6
-                noise = np.random.normal(0.0, std_dev * nsr, size=w[:, bin_idx].shape)
-                noisy_w[:, bin_idx] += noise
-
-                mse, _, _, _, _, _ = run_ensemble_inference_on_window(
-                    ensemble, model_bins, model_cfgs, noisy_w
-                )
-                deltas.append(max(0.0, mse - avg_baseline_score))
-            sensitivity_matrix[lvl_idx, bin_idx] = float(np.mean(deltas))
+    for lvl_idx, nsr in enumerate(noise_levels):
+        for bin_idx in range(total_bins):
+            # perturb selected frequency bin across all temporal frames of the segment
+            noise_scale = float(bin_means[bin_idx] * nsr)
+            noisy_w = np.copy(sample_stack)
+            noisy_w[:, :, bin_idx] += np.random.normal(0.0, noise_scale, size=(len(sample_stack), tsteps))
+            
+            # compute LogMSE across all evaluated temporal frames
+            log_noisy = np.log1p(np.abs(noisy_w))
+            log_clean = np.log1p(np.abs(base_recs_window))
+            mse_perturbed = np.mean((log_noisy - log_clean) ** 2, axis=(1, 2)) # (N,)
+            delta = np.maximum(0.0, mse_perturbed - avg_baseline_score)
+            sensitivity_matrix[lvl_idx, bin_idx] = float(np.mean(delta))
 
     # 6. compute quantified resilience indicators
     avg_sensitivity_per_level = np.mean(sensitivity_matrix, axis=1)
-    critical_idx = int(np.argmax(avg_sensitivity_per_level > 0.05)) if np.any(avg_sensitivity_per_level > 0.05) else len(noise_levels) - 1
+    # Anomaly threshold crossing (e.g. delta > 0.15)
+    anom_crossings = np.where(avg_sensitivity_per_level >= 0.15)[0]
+    critical_idx = int(anom_crossings[0]) if len(anom_crossings) > 0 else len(noise_levels) - 1
     critical_noise_threshold = float(noise_levels[critical_idx])
     critical_noise_power_2 = float(powers_of_2[critical_idx])
 
@@ -350,9 +432,9 @@ async def test_noise_resilience(
     bin_sensitivity = np.mean(sensitivity_matrix, axis=0)
     most_sensitive_bins = [int(i) for i in np.argsort(bin_sensitivity)[-5:][::-1]]
 
-    # overall resilience score: 1.0 (highly robust) to 0.0 (fragile)
-    normalized_auc = float(np.mean(sensitivity_matrix))
-    robustness_score = float(np.clip(1.0 - (normalized_auc * 2.0), 0.0, 1.0))
+    # overall resilience score: ratio of noise levels safely below threshold
+    safe_fraction = float(critical_idx) / float(max(1, len(noise_levels) - 1))
+    robustness_score = float(np.clip(safe_fraction, 0.05, 0.95))
 
     return {
         "node_id": node_id,
@@ -416,9 +498,10 @@ async def test_cross_submodel_specificity(
     # collect sample windows and assign partition index
     clusters_data: Dict[int, List[np.ndarray]] = {r_idx: [] for r_idx in range(len(submodel_ids))}
     for sid in seg_ids:
+        seg_id = getattr(sid, "segment_id", sid)
         stmt_raw = (
             select(RawTelemetryModel)
-            .where(RawTelemetryModel.node_id == node_id, RawTelemetryModel.segment_id == sid)
+            .where(RawTelemetryModel.node_id == node_id, RawTelemetryModel.segment_id == seg_id)
             .order_by(RawTelemetryModel.chunk_id.asc())
         )
         res_raw = await session.execute(stmt_raw)
@@ -480,4 +563,134 @@ async def test_cross_submodel_specificity(
             "mode_separability_index": separability_index
         }
     }
+
+async def get_segment_stft_spectrogram(
+    session: AsyncSession,
+    node_id: str,
+    segment_id: Optional[int] = None,
+    from_time_ms: Optional[int] = None,
+    to_time_ms: Optional[int] = None
+) -> Dict[str, Any]:
+    # computes full STFT frequency-time spectrogram for raw telemetry across the requested time window
+    conditions = [RawTelemetryModel.node_id == node_id]
+    if from_time_ms is not None:
+        dt_from = datetime.fromtimestamp(from_time_ms / 1000.0, tz=timezone.utc)
+        conditions.append(RawTelemetryModel.timestamp >= dt_from)
+    if to_time_ms is not None:
+        dt_to = datetime.fromtimestamp(to_time_ms / 1000.0, tz=timezone.utc)
+        conditions.append(RawTelemetryModel.timestamp <= dt_to)
+
+    if segment_id is not None:
+        conditions.append(RawTelemetryModel.segment_id == segment_id)
+    elif from_time_ms is None and to_time_ms is None:
+        stmt_max = select(func.max(RawTelemetryModel.segment_id)).where(RawTelemetryModel.node_id == node_id)
+        res_max = await session.execute(stmt_max)
+        latest_sid = res_max.scalar()
+        if latest_sid is not None:
+            conditions.append(RawTelemetryModel.segment_id == latest_sid)
+
+    stmt_raw = (
+        select(RawTelemetryModel)
+        .where(*conditions)
+        .order_by(RawTelemetryModel.segment_id.asc(), RawTelemetryModel.chunk_id.asc())
+        .limit(300)
+    )
+    res_raw = await session.execute(stmt_raw)
+    chunks = list(res_raw.scalars().all())
+    if not chunks:
+        raise ValueError(f"No raw telemetry found for node '{node_id}' in the requested time range")
+
+    ax, ay, az = [], [], []
+    gx, gy, gz = [], [], []
+    for c in chunks:
+        ax.extend(c.accel_x)
+        ay.extend(c.accel_y)
+        az.extend(c.accel_z)
+        gx.extend(c.gyro_x)
+        gy.extend(c.gyro_y)
+        gz.extend(c.gyro_z)
+
+    accel_mag = np.sqrt(np.array(ax, dtype=np.float32)**2 + np.array(ay, dtype=np.float32)**2 + np.array(az, dtype=np.float32)**2)
+    gyro_mag = np.sqrt(np.array(gx, dtype=np.float32)**2 + np.array(gy, dtype=np.float32)**2 + np.array(gz, dtype=np.float32)**2)
+
+    total_pts = len(accel_mag)
+    win_size = 256
+    target_frames = min(150, max(24, total_pts // 256))
+    hop = max(64, (total_pts - win_size) // target_frames) if total_pts > win_size else 128
+
+    def stft_calc(sig):
+        window = np.hanning(win_size)
+        frames = []
+        for i in range(0, len(sig) - win_size + 1, hop):
+            slice_ = sig[i:i+win_size] * window
+            spec = np.abs(np.fft.rfft(slice_))
+            frames.append(spec[:128])
+        return np.log1p(np.array(frames, dtype=np.float32)) if frames else np.zeros((1, 128), dtype=np.float32)
+
+    accel_stft = stft_calc(accel_mag)
+    gyro_stft = stft_calc(gyro_mag)
+    combined = np.hstack([accel_stft, gyro_stft]) # shape: (frames, 256)
+
+async def flag_segments_in_range(
+    session: AsyncSession,
+    node_id: str,
+    from_time_ms: Optional[int] = None,
+    to_time_ms: Optional[int] = None,
+    from_time_str: Optional[str] = None,
+    to_time_str: Optional[str] = None,
+    is_anomaly: bool = True,
+    exclude_from_training: bool = True
+) -> Dict[str, Any]:
+    # manual tagging: flag all telemetry segments within time range as anomaly or nominal
+    if from_time_ms is not None:
+        dt_from = datetime.fromtimestamp(from_time_ms / 1000.0, tz=timezone.utc)
+    elif from_time_str:
+        dt_from = datetime.fromisoformat(from_time_str.replace("Z", "+00:00"))
+    else:
+        dt_from = datetime.min.replace(tzinfo=timezone.utc)
+
+    if to_time_ms is not None:
+        dt_to = datetime.fromtimestamp(to_time_ms / 1000.0, tz=timezone.utc)
+    elif to_time_str:
+        dt_to = datetime.fromisoformat(to_time_str.replace("Z", "+00:00"))
+    else:
+        dt_to = datetime.max.replace(tzinfo=timezone.utc)
+
+    stmt_segs = (
+        select(RawTelemetryModel.segment_id)
+        .where(
+            RawTelemetryModel.node_id == node_id,
+            RawTelemetryModel.timestamp >= dt_from,
+            RawTelemetryModel.timestamp <= dt_to
+        )
+        .group_by(RawTelemetryModel.segment_id)
+    )
+    res_segs = await session.execute(stmt_segs)
+    segment_ids = list(res_segs.scalars().all())
+
+    if not segment_ids:
+        return {"node_id": node_id, "updated_segments_count": 0, "segment_ids": []}
+
+    stmt_upd = (
+        update(InferenceResultModel)
+        .where(
+            InferenceResultModel.node_id == node_id,
+            InferenceResultModel.segment_id.in_(segment_ids)
+        )
+        .values(
+            anomaly=is_anomaly,
+            is_recalculated=True
+        )
+    )
+    await session.execute(stmt_upd)
+    await session.commit()
+
+    return {
+        "node_id": node_id,
+        "is_anomaly": is_anomaly,
+        "exclude_from_training": exclude_from_training,
+        "updated_segments_count": len(segment_ids),
+        "affected_segment_ids": segment_ids
+    }
+
 
