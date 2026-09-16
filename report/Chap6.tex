@@ -90,19 +90,23 @@ Il dataset usato è il dataset fornito da Bosch  \cite{bosch_cnc_dataset}, conti
 		\textbf{Autoencoder} & \textbf{Dense Router} & \textbf{Conv 1D Router} & \textbf{STFT MCNN Router} \\
 		& \multicolumn{3}{c}{\small (F1-Score: Senza Memoria / Con Memoria)} \\
 		\midrule
-		Dense AE            & 0.531 / 0.534 & 0.508 / 0.528 & 0.530 / 0.538 \\
-		Variazionale AE     & \textbf{0.536} / 0.535 & 0.516 / \textbf{0.544} & \textbf{0.536} / \textbf{0.540} \\
-		Conv 1D AE          & 0.493 / 0.487 & 0.462 / 0.499 & 0.471 / 0.508 \\
-		Conv 2D AE          & 0.528 / 0.531 & \textbf{0.519} / 0.530 & 0.529 / 0.534 \\
-		ConvLSTM            & 0.451 / 0.443 & 0.416 / 0.459 & 0.425 / 0.458 \\
-		Ensemble Eterogeneo & 0.526 / \textbf{0.534} & 0.503 / 0.535 & 0.524 / 0.529 \\
+		Dense AE            & 0.518 / 0.525 & 0.490 / 0.515 & 0.517 / 0.527 \\
+		Variazionale AE     & \textbf{0.530} / 0.528 & 0.505 / \textbf{0.536} & 0.527 / 0.535 \\
+		Conv 1D AE          & 0.489 / 0.480 & 0.443 / 0.487 & 0.454 / 0.507 \\
+		Conv 2D AE          & 0.529 / \textbf{0.538} & \textbf{0.525} / 0.534 & \textbf{0.530} / \textbf{0.537} \\
+		ConvLSTM            & 0.456 / 0.442 & 0.412 / 0.455 & 0.417 / 0.465 \\
+		Ensemble Eterogeneo & 0.523 / 0.531 & 0.493 / 0.527 & 0.516 / 0.524 \\
 		\bottomrule
 	\end{tabular}
-	\caption{F1-Score medio nelle lavorazioni CNC in cui la memoria temporale migliora le prestazioni complessive (13 lavorazioni su 30, 43.3\% del totale).}
+	\caption{F1-Score medio nelle lavorazioni CNC in cui la memoria temporale migliora le prestazioni complessive (10 lavorazioni su 30, 33.3\% del totale).}
 	\label{tab:benchmark_f1_mem_wins}
 \end{table}
 
-La tabella \ref{tab:benchmark_separation_summary} mostra il \emph{Separation Ratio} ($\text{MSE}_{\text{anomalo}} / \text{MSE}_{\text{normale}}$), quantifica la distanza tra l'errore di ricostruzione dei segmenti anomali rispetto ai sani.
+La tabella \ref{tab:benchmark_f1_summary} mostra il punteggio medio delle varie architetture di modelli, possiamo vedere che in media il  miglior modello é formato da sottomodelli convoluzionali 2D.
+
+La tabella \ref{tab:benchmark_f1_hetero_wins} mostra il punteggio medio delle varie architetture di modelli ma selezionando il terzo dei casi in cui un ensemble eterogeneo ha il punteggio più alto. I risultati mostrano che un ensemble eterogeneo ha un punteggio F1 in media il +10.50\% più alto di modelli omogenei, questo dimostra che un ensemble eterogeneo é una valida architettura con determinati tipi di segnale vibrazionale.
+
+La tabella \ref{tab:benchmark_f1_mem_wins} mostra il punteggio medio delle varie architetture di modelli ma selezionando il 33.3\% dei casi in cui un modelli di memoria hanno il punteggio più alto. Si può notare che in media un modello con memoria aggiunta migliora il punteggio F1 in media del +3.60\% questo mostra che un ensemble con memoria sia lievemente migliore di uno senza memoria riguardo il punteggio F1.
 
 \begin{table}[H]
 	\centering
@@ -123,6 +127,8 @@ La tabella \ref{tab:benchmark_separation_summary} mostra il \emph{Separation Rat
 	\label{tab:benchmark_separation_summary}
 \end{table}
 
+
+La tabella \ref{tab:benchmark_separation_summary} mostra il \emph{Separation Ratio} ($\text{MSE}_{\text{anomalo}} / \text{MSE}_{\text{normale}}$), quantifica la distanza tra l'errore di ricostruzione dei segmenti anomali rispetto ai sani.
 
 
 \subsection{Occupazione di Memoria RAM e Flash}

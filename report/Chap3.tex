@@ -2,10 +2,10 @@
 \section{Hardware}
 Vengono usati:
 \begin{itemize}
-	\item \textbf{ESP32-S3} \cite{esp32s3_datasheet} con modulo PSRAM da 8MB e memoria flash da 16MB
+	\item \textbf{ESP32-S3} \cite{esp32s3_datasheet} con modulo PSRAM da 8MB e memoria flash da 16MB.
 
-	\item \textbf{STEVAL-MKI245KA} \cite{mems_board} in modalità di comunicazione SPI
-	\item \textbf{Adafruit 4682} \cite{adafruit_4682} lettore sd in modalità di comunicazione SPI %per ora ho un generico, non ha codici, ho ordinato un adafruit 4682 ma deve arrivare, per ora fac finta di usare quello
+	\item \textbf{STEVAL-MKI245KA} \cite{mems_board} in modalità di comunicazione SPI.
+	\item \textbf{Adafruit 4682} \cite{adafruit_4682} lettore sd in modalità di comunicazione SPI. %per ora ho un generico, non ha codici, ho ordinato un adafruit 4682 ma deve arrivare, per ora fac finta di usare quello
 	%TODO aggiornare la schematic per il 4682
 
 \end{itemize}
@@ -74,9 +74,9 @@ Vengono usati:
 \end{samepage}
 Il profilo energetico usato é \textit{Modem-sleep mode}, rilasciato da Espressif \cite{esp32s3_datasheet}, dove il modem viene attivato solo quando necessario, quindi il consumo effettivo é:
 \begin{itemize}
-	\item in \textbf{Modem TX}: CPU Active/All RTC/Wi-Fi, durante la comunicazione dei dati (286 mA)
-	\item in \textbf{Modem RX}: CPU Active/All RTC/Wi-Fi, durante la ricezione di modelli, comandi e configurazioni dei dati (91 mA)
-	\item in \textbf{Modem sleep}: CPU Active/All RTC/No Wi-Fi, durante la fase di sola inferenza, scrittura su sd o lettura del sensore (81.3 mA)
+	\item in \textbf{Modem TX}: CPU Active/All RTC/Wi-Fi, durante la comunicazione dei dati (286 mA).
+	\item in \textbf{Modem RX}: CPU Active/All RTC/Wi-Fi, durante la ricezione di modelli, comandi e configurazioni dei dati (91 mA).
+	\item in \textbf{Modem sleep}: CPU Active/All RTC/No Wi-Fi, durante la fase di sola inferenza, scrittura su sd o lettura del sensore (81.3 mA).
 \end{itemize}
 
 Il sistema acquisisce campioni da \(12\,\mathrm{byte}\) (16bit per valore, 3 per accelerometro e 3 per giroscopio) ad una frequenza di
@@ -211,11 +211,11 @@ della CPU e delle periferiche, pari a \(81.3\,\mathrm{mA}\), si ottiene
 \subsection{Sintesi dei Consumi di Sistema}
 Sommando i consumi si ha un consumo medio teorico di $\approx83.75\mathrm{mA}$, o $\approx276.4\mathrm{mW}$, e un consumo di picco di $\approx 618.9\mathrm{mA}$ o $\approx2042\mathrm{mW}$.
 
-Il che significa che una batteria 18650 da circa 9Wh, riuscirebbe ad alimentare il dispositivo per 32 ore
+Il che significa che una batteria 18650 da circa 9Wh, riuscirebbe ad alimentare il dispositivo per 32 ore.
 
 \subsubsection{Tecniche di Ottimizzazione energetica}
-32 ore sono la stima per la modalità con il massimo consumo, ovvero la lettura, salvataggio, invio dei dati e l'inferenza basata su suddetti dati.
-Una volta che la \textit{backend} riceve abbastanza dati per allenare modelli validi si può mettere il device in varie modalità risparmio energetico configurabile %circa lo supporta ma non proprio
+La stima di 32 ore si riferisce all'autonomia con il massimo consumo, ovvero con continua lettura, salvataggio, invio dei dati e l'inferenza basata su suddetti dati.
+Una volta che la \textit{backend} riceve abbastanza dati per allenare modelli validi si può mettere il device in varie modalità risparmio energetico configurabile. %circa lo supporta ma non proprio
 
 
 \begin{table}[H]
@@ -239,8 +239,8 @@ Una volta che la \textit{backend} riceve abbastanza dati per allenare modelli va
 \section{Software}
 \subsection{Struttura principale}
 Il codice del firmware é scritto in C/C++ usando il framework ESP-IDF.
-Il sistema giova dell'architettura dual core del microcontrollore ESP32-S3 \cite{esp32s3_datasheet}
-Ci sono 6 task/thread principali
+Il sistema giova dell'architettura dual core del microcontrollore ESP32-S3 \cite{esp32s3_datasheet}.
+Ci sono 6 task/thread principali.
 
 
 
@@ -266,10 +266,10 @@ Tutte le task nel core 0 hanno grandi ritardi di I/O perché richiedono chiamate
 
 	\item[\texttt{inferencer} (Core 1, Priorità 4)] Calcola la magnitudo e carica dello spettrogramma STFT 2D. Esegue i modelli dell'\textit{ensemble} (insieme di modelli) e calcola il valore delle anomalie.
 
-	\item[\texttt{uploader} (Core 0, Priorità 3)] Gestisce la serializzazione in formato CBOR e la trasmissione dei dati. Divide l'array di campioni float in pacchetti più piccoli per rientrare nei limiti dei buffer di rete dell'MQTT. E invia i dati al broker MQTT. %512 ma potrei cambiarlo
+	\item[\texttt{uploader} (Core 0, Priorità 3)] Gestisce la serializzazione in formato CBOR e la trasmissione dei dati. Divide l'array di campioni float in pacchetti più piccoli per rientrare nei limiti dei buffer di rete dell'MQTT, e li invia al broker MQTT. %512 ma potrei cambiarlo
 
 
-	\item[\texttt{dump\_reader} (Core 0, Priorità 3)] Viene istanziato temporaneamente in caso di trigger di replay, ovvero se la backend richiede un upload di tutti i dati storici salvati. Legge i file binari dalla scheda SD e li reinserisce nella pipeline di elaborazione, nello stesso modo in cui farebbe \textit{harvester}, che viene messo in pausa nel caso venga richiesto il replay. É un processo IO-bound, quindi messo nel Core 0
+	\item[\texttt{dump\_reader} (Core 0, Priorità 3)] Viene istanziato temporaneamente in caso di trigger di replay, ovvero se la backend richiede un upload di tutti i dati storici salvati. Legge i file binari dalla scheda SD e li reinserisce nella pipeline di elaborazione, nello stesso modo in cui farebbe \textit{harvester}, che viene messo in pausa nel caso venga richiesto il replay. É un processo IO-bound, quindi messo nel Core 0.
 
 	\item[\texttt{sd\_writer} (Core 0, Priorità 2)] Prende i dati (sia i datapoint che i risultati dell'inferenza) e li scrive sulla scheda SD in formato binario.
 
@@ -342,10 +342,10 @@ La ragione per cui abbiamo bisogno di 4 buffer é che questo garantisce che 2 si
 Il sistema é predisposto anche per altre modalità. Le modalità di upload di dati, configurabili dalla backend runtime sono:
 
 \begin{itemize}
-	\item \textit{Continuous}: ovvero quello nel grafico sopra, il device carica sul cloud tutti i dati che riesce, elaborati o no
-	\item \textit{AnomalyOnly}: il device carica sul cloud il segmento solo se risulta in un anomalia
-	\item \textit{AnomalyOrPeriodic}: il device carica sul cloud il segmento solo se risulta in un anomalia, ma carica con una certa cadenza anche dati non anomali per permettere un allenamento continuo dei modelli
-	\item \textit{ContinuousScoreRawAnomaly}: il device carica sempre il risultato dell'inferenza, ma carica anche il segmento solo se si tratta di un anomalia
+	\item \textit{Continuous}: ovvero quello nel grafico sopra, il device carica sul cloud tutti i dati che riesce, elaborati o no.
+	\item \textit{AnomalyOnly}: il device carica sul cloud il segmento solo se risulta in un anomalia.
+	\item \textit{AnomalyOrPeriodic}: il device carica sul cloud il segmento solo se risulta in un anomalia, ma carica con una certa cadenza anche dati non anomali per permettere un allenamento continuo dei modelli.
+	\item \textit{ContinuousScoreRawAnomaly}: il device carica sempre il risultato dell'inferenza, ma carica anche il segmento solo se si tratta di un anomalia.
 \end{itemize}
 
 Il device espone alla backend dei comandi di dump opzionali, questi sono \textit{dump}, che carica sul cloud tutti i dati dalla scheda SD senza farne l'inferenza (harvester e inferencer disabilitati) e \textit{dump\_i} che carica tutti i dati, ma calcolandone anche le anomalie (harvester disabilitato).
@@ -384,9 +384,9 @@ L'architettura è formata da 3 tipi di modelli disposti in maniera simil-MIXAE \
 \input{model_graph}
 
 \begin{itemize}
-	\item 1 \textbf{Router}: prende in input un segmento e lo stato della memoria e decide quale autoencoder dovrà processarlo
+	\item 1 \textbf{Router}: prende in input un segmento e lo stato della memoria e decide quale autoencoder dovrà processarlo.
 	\item 1 \textbf{Memoria}: memoria, opzionale per modello. Utile per modelli non convoluzionali, è un modo per aggiungere informazioni sul passato.
-	\item N \textbf{autoencoder}: ci sono N (max 16), autoencoder che prendono il segmento e provano a ricostruirlo, l'errore di ricostruzione indica il livello di anomalia, configurabile tra MSE lineare e MSE logaritmico, può essere usato qualsiasi modelli rappresentabile con grafi nativi tflite micro
+	\item N \textbf{autoencoder}: ci sono N (max 16), autoencoder che prendono il segmento e provano a ricostruirlo, l'errore di ricostruzione indica il livello di anomalia, configurabile tra MSE lineare e MSE logaritmico, può essere usato qualsiasi modelli rappresentabile con grafi nativi tflite micro.
 
 \end{itemize}
 
@@ -399,22 +399,22 @@ Una volta caricato un nuovo modello, se la memoria non è sufficiente, viene rim
 
 % aggiungere sdw writer, harvester, uploader e dump_reader? non c'è tanto altro da dire
 
-\section{Ottimizzazioni}.
-Vengono usate varie funzioni ottimizzate per l'ESP32S3
+\section{Ottimizzazioni}
+Vengono usate varie funzioni ottimizzate per l'ESP32S3.
 \begin{itemize}
 	\item \textbf{dsp\_opt\_int16\_to\_float}, custom, permette di convertire un buffer da int16
-	a float con l'istruzione FLOAT.S di Xtensa LX7 \cite{xtensa_isa}
+	a float con l'istruzione FLOAT.S di Xtensa LX7 \cite{xtensa_isa}.
 	 \item \textbf{\texttt{dsps\_fft2r\_fc32} (Radix-2 Complex FFT)}: calcola la fft sui dati del sensore. Fornita da ESP-DSP \cite{espdsp}.
 	\item \textbf{\texttt{dsps\_fft2r\_init\_fc32} (Inizializzazione FFT)}: Precalcola le tabelle dei fattori rotazionali (\textit{twiddle factors}) per evitare runtime calcoli di seni e coseni, molto pesanti. Fornita da ESP-DSP \cite{espdsp}.
 	\item \textbf{\texttt{dsps\_bit\_rev\_fc32} (Bit Reversal)}: Esegue il riordinamento dell'array in output di dsps\_fft2r\_fc32. Fornita da ESP-DSP \cite{espdsp}.
-	\item \textbf{\texttt{dsps\_wind\_hann\_f32} (Generazione Finestra di Hanning)}: Calcola e applica la finestra di Hann. Fornita da ESP-DSP \cite{espdsp}-
+	\item \textbf{\texttt{dsps\_wind\_hann\_f32} (Generazione Finestra di Hanning)}: Calcola e applica la finestra di Hann. Fornita da ESP-DSP \cite{espdsp}.
 	\item \textbf{\texttt{dsps\_mulc\_f32} (Moltiplicazione Vettore-Scalare)}: Esegue la moltiplicazione di un array float per un numero. Fornita da ESP-DSP \cite{espdsp}.
 \end{itemize}
 
 
 \subsection{Ottimizzazione della conversione in float}
 \label{subsec:dsp_optimization}
-Il sensore restituisce dati in tipo int16, ma le funzioni di calcolo si aspettano dati in formato float da -1 a 1, quindi dobbiamo convertirli usando la funzione dsp\_opt\_int16\_to\_float che sfrutta l'istruzione assembly FLOAT.S
+Il sensore restituisce dati in tipo int16, ma le funzioni di calcolo si aspettano dati in formato float da -1 a 1, quindi dobbiamo convertirli usando la funzione dsp\_opt\_int16\_to\_float che sfrutta l'istruzione assembly FLOAT.S.
 
 \subsubsection{L'istruzione \texttt{FLOAT.S}}
 L'approccio \textit{naive} sarebbe fare un ciclo for facendo un cast di ogni valore del buffer in float e poi moltiplicarlo per $1/32768.0$:

@@ -10,10 +10,10 @@ Tutti i messaggi che vengono scambiati tra l'edge e il servizio sono codificati 
 	\begin{itemize}
 		\item \texttt{v1/\{node\_id\}/data/sensor}: Chunk di campioni raw dei 6 assi IMU, una finestra completa è formata da 4096 valori per asse, il che sarebbe troppo pesante da mandare in un unico pacchetto, quindi la finestra viene separata in chunk più piccoli. %per ora 512
 
-		La finestra ha un id incrementale numerico, per poi ricostruire l'ordine cronologico delle finestre, se il sensore notifica un \textit{OVERRUN} significa che il controllore è stato troppo lento a leggerne i dati e viene saltato un id, in questo modo il backend rileva immediatamente la discontinuità temporale
+		La finestra ha un id incrementale numerico, per poi ricostruire l'ordine cronologico delle finestre, se il sensore notifica un \textit{OVERRUN} significa che il controllore è stato troppo lento a leggerne i dati e viene saltato un id, in questo modo il backend rileva immediatamente la discontinuità temporale.
 
 		\item \texttt{v1/\{node\_id\}/inference}: Risultati dell'inferenza: LogMSE, flag anomalia, id modelli e tempo di inferenza.
-		\item \texttt{v1/\{node\_id\}/info/caps}: Capabilities del firmware per quanto riguarda le operazioni TFLite compilate nel firmware, usate per notificare la backend di quali modelli può usare. Notifica anche le frequenze disponibili del sensore
+		\item \texttt{v1/\{node\_id\}/info/caps}: Capabilities del firmware per quanto riguarda le operazioni TFLite compilate nel firmware, usate per notificare la backend di quali modelli può usare. Notifica anche le frequenze disponibili del sensore.
 		\item \texttt{v1/\{node\_id\}/info/health}: RAM libera, stato scheda SD, modelli attivi in cache e inferenze per secondo.
 		\item \texttt{v1/\{node\_id\}/config/fetch}: Richiesta al backend della configurazione runtime attiva.
 		\item \texttt{v1/\{node\_id\}/ensemble/fetch}: Richiesta al backend della configurazione dell'ensemble attivo.
@@ -54,13 +54,13 @@ Una volta trovata l'architettura migliore, viene salvata nella base di dati e ca
 \subsubsection{Parametri di Optuna}
 Costanti Hardware per optuna:
 \begin{itemize}
-	\item Clock CPU a 240 MHz
-	\item RAM cache di 4MB
-	\item Velocità di lettura da SD 1MB/s
-	\item Soglia minima di velocità di inferenza >0.5Hz
+	\item Clock CPU a 240 MHz.
+	\item RAM cache di 4MB.
+	\item Velocità di lettura da SD 1MB/s.
+	\item Soglia minima di velocità di inferenza >0.5Hz.
 \end{itemize}
-op
-\subsubsection*{Spazio di Ricerca degli Iperparametri}
+
+\subsubsection{Spazio di Ricerca degli Iperparametri}
 
 
 Durante ogni iterazione di ricerca Optuna può cambiare:
@@ -90,23 +90,23 @@ Durante ogni iterazione di ricerca Optuna può cambiare:
 \begin{itemize}
 	\item[\(\bullet\)] \textbf{\texttt{DenseRouter}}:
 	\begin{itemize}
-		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64, 128]} neuroni per layer
-		\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2, 3]}
-		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}
+		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64, 128]} neuroni per layer.
+		\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2, 3]}.
+		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}.
 	\end{itemize}
 
 	\item[\(\bullet\)] \textbf{\texttt{Conv1DRouter}} (Convoluzione 1D + Testa Densa):
 	\begin{itemize}
-		\item[\(\ast\)] \texttt{filters}: \texttt{[8, 16, 32]} filtri convoluzionali (kernel 3)
-		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64]} neuroni nello strato denso
-		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}
+		\item[\(\ast\)] \texttt{filters}: \texttt{[8, 16, 32]} filtri convoluzionali (kernel 3).
+		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64]} neuroni nello strato denso.
+		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}.
 	\end{itemize}
 
 	\item[\(\bullet\)] \textbf{\texttt{STFTMCNNRouter}} (Multi-Branch CNN + Fusione Densa):
 	\begin{itemize}
-		\item[\(\ast\)] \texttt{branch\_filters}: \texttt{[8, 16, 32]} filtri paralleli per ciascuno dei 3 rami (kernel 3, 5 e 7)
-		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64]} neuroni dello strato denso finale
-		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}
+		\item[\(\ast\)] \texttt{branch\_filters}: \texttt{[8, 16, 32]} filtri paralleli per ciascuno dei 3 rami (kernel 3, 5 e 7).
+		\item[\(\ast\)] \texttt{hidden\_units}: \texttt{[16, 32, 64]} neuroni dello strato denso finale.
+		\item[\(\ast\)] \texttt{learning\_rate}: \texttt{1e-4 .. 1e-2}.
 	\end{itemize}
 \end{itemize}
 
@@ -114,48 +114,48 @@ Durante ogni iterazione di ricerca Optuna può cambiare:
 	\begin{itemize}
 		\item[\(\bullet\)] \textbf{\texttt{DenseAutoencoder}}:
 		\begin{itemize}
-			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[8, 16, 32, 64]} dimensione dello spazio latente
-			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2, 3]} strati densi di encode/decode
-			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4, 8]} passo di sottocampionamento dei frame, può decidere se saltare \textit{skip} punti di input per velocizzare l'inferenza
+			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[8, 16, 32, 64]} dimensione dello spazio latente.
+			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2, 3]} strati densi di encode/decode.
+			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4, 8]} passo di sottocampionamento dei frame, può decidere se saltare \textit{skip} punti di input per velocizzare l'inferenza.
 
-			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia
+			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia.
 		\end{itemize}
 
 		\item[\(\bullet\)] \textbf{\texttt{VariationalAutoencoder}}:
 		\begin{itemize}
-			\item[\(\ast\)] \texttt{temporal\_depth} \texttt{la dimensione di input/output}
-			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[8, 16, 32]} dimensione dello spazio latente gaussiano
-			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2,4 ]} strati densi di encode/decode
+			\item[\(\ast\)] \texttt{temporal\_depth} \texttt{la dimensione di input/output}.
+			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[8, 16, 32]} dimensione dello spazio latente gaussiano.
+			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2,4 ]} strati densi di encode/decode.
 
-			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame
-			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia
+			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame.
+			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia.
 		\end{itemize}
 
 		\item[\(\bullet\)] \textbf{\texttt{Conv1DAutoencoder}} (Convoluzione 1D lungo l'asse delle frequenze):
 		\begin{itemize}
-			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32, 64]} filtri convoluzionali
-			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del vettore di bottleneck
-			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2]} strati di Conv1D e Conv1D-Transpose
-			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame
-			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia
+			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32, 64]} filtri convoluzionali.
+			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del vettore di bottleneck.
+			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2]} strati di Conv1D e Conv1D-Transpose.
+			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame.
+			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia.
 		\end{itemize}
 
 		\item[\(\bullet\)] \textbf{\texttt{Conv2DAutoencoder}} (Convoluzione 2D spazio-temporale):
 		\begin{itemize}
-			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32, 64]} filtri convoluzionali 2D
-			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del bottleneck
-			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2]} strati di Conv2D e Conv2D-Transpose
-			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame
-			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia
+			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32, 64]} filtri convoluzionali 2D.
+			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del bottleneck.
+			\item[\(\ast\)] \texttt{num\_layers}: \texttt{[1, 2]} strati di Conv2D e Conv2D-Transpose.
+			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame.
+			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia.
 		\end{itemize}
 
 		\item[\(\bullet\)] \textbf{\texttt{ConvLSTMAutoencoder}} (Convoluzione combinata a celle ricorsive LSTM):
 		\begin{itemize}
-			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32]} filtri convoluzionali
-			\item[\(\ast\)] \texttt{hidden\_dim}: \texttt{[16, 32]} dimensione dello stato ricorsivo della cella LSTM
-			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del bottleneck
-			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame
-			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia
+			\item[\(\ast\)] \texttt{filters}: \texttt{[16, 32]} filtri convoluzionali.
+			\item[\(\ast\)] \texttt{hidden\_dim}: \texttt{[16, 32]} dimensione dello stato ricorsivo della cella LSTM.
+			\item[\(\ast\)] \texttt{latent\_dim}: \texttt{[16, 32]} dimensione del bottleneck.
+			\item[\(\ast\)] \texttt{skip}: \texttt{[1, 2, 4]} passo di sottocampionamento temporale dei frame.
+			\item[\(\ast\)] \texttt{limit}: \texttt{[0.05 .. 0.5]} soglia di anomalia.
 		\end{itemize}
 	\end{itemize}
 		\end{itemize}

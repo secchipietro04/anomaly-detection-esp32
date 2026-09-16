@@ -1,9 +1,11 @@
 \chapter{Modelli utilizzati}
 %troppo poco come introduzione? o inutile?
-%TODO AI: Sull'introduzione del capitolo: conviene ampliarla formalizzando il paradigma di anomaly detection non supervisionata: i modelli apprendono esclusivamente la varietà dei dati nominali (normal baseline); scostamenti superiori a una soglia limite indicano un'anomalia. Spiega anche perché un approccio ensemble con routing specializzato e memoria temporale supera un singolo modello monolitico su segnali industriali complessi e multi-regime.
+
 Come abbiamo detto ci sono 3 tipi di modelli, il modello memoria, il modello router, e N sottomodelli autoencoder.
 
 \subsection{Modello Memoria}
+
+\begin{figure}
 \begin{tikzpicture}[
 	node distance=2cm,
 	box/.style={
@@ -33,6 +35,8 @@ Come abbiamo detto ci sono 3 tipi di modelli, il modello memoria, il modello rou
 	\path[arrow] (lstm2.north east) edge[out=70, in=110, looseness=3] node[above, font=\scriptsize] {Stato} (lstm2.north west);
 
 \end{tikzpicture}
+\caption{Modello a LSTM}
+\end{figure}
 
 
 	 \textbf{LSTM Memory Backbone} utilizza dei layer a Long Short Term Memory (LSTM) \cite{hochreiter1997lstm}, che permettono agli altri sottomodelli ricordare dati passati. Riceve in input i singoli segmenti dello spettrogramma e fornisce in output una rappresentazione latente dei dati. % ora che ci penso dovrei mettere controlli in caso di EGVG
@@ -44,7 +48,7 @@ Il Router funge da classificatore: riceve lo spettrogramma in input e produce un
 Le architetture usate sono:
 \begin{enumerate}
 	\item \textbf{Fully connected}:
-Rete neurale densa (Multilayer Perceptron, MLP) \cite{rumelhart1986learning}
+Rete neurale densa (Multilayer Perceptron, MLP) \cite{rumelhart1986learning}.
 
 
 	\item \textbf{STFT MCNN}:
@@ -53,19 +57,19 @@ Multi-branch Convolutional Neural Network. Applica 3 reti convoluzionali paralle
 
 	\item \textbf{1D CNN}
 	Rete convoluzionale (multilivello) ad un kernel per livello che scansiona lo spettrogramma, ha un MLP finale per la classificazione.
-\cite{kiranyaz20151dcnn}
+\cite{kiranyaz20151dcnn}.
 \end{enumerate}
 \subsubsection{Modelli autoencoder}
 %troppo prolisso/confuso?
 Provano a ricostruire il segnale di input, la ragione per cui sono utili nel contesto dell'anomaly detection è che riescono a ricostruire il segnale di input solo se sono stati allenati con dati simili a quelli che dovranno poi ricostruire, questo fa si che se incontrano dati mai visti non riusciranno a ricostruire in maniera affidabile l'input, e quindi possiamo assumere che quell'input è diverso in struttura dai dati in cui è stato allenato.
-La formula della ricostruzione é $\hat{x} = f_{dec}(f_{enc}(x))$ e il punteggio di somiglianza $s = \mathcal{L}(x, \hat{x})$
+La formula della ricostruzione é $\hat{x} = f_{dec}(f_{enc}(x))$ e il punteggio di somiglianza $s = \mathcal{L}(x, \hat{x})$.
 
 
 
 %TODO aggiungere disegno esplicativo di un AE?
 \begin{enumerate}
 	\item \textbf{Autoencoder denso}:
-	Usa semplici layer densi, essendo di fatto un MLP con dei layer di bottleneck, che formano lo spazio latente, tra l'encoder e il decoder
+	Usa semplici layer densi, essendo di fatto un MLP con dei layer di bottleneck, che formano lo spazio latente, tra l'encoder e il decoder.
 
 	\item \textbf{Variational
 		autoencoder}:

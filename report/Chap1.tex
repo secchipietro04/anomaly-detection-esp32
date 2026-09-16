@@ -9,7 +9,7 @@ I guasti di un organo rotante ne cambiano la sequenza caratteristica nei seguent
 	\item \textbf{Disallineamento angolare o parallelo} produce armoniche al doppio della frequenza di rotazione.
 	\item \textbf{Difetti nei cuscinetti} producono frequenze di impatto caratteristiche alla loro velocità di rotazione calcolabili.
 \end{itemize}
-Per raccogliere questi dati vibrazionali si ha bisogno di un sensore; i primi sensori vibrazionali erano trasduttori piezoelettrici analogici, che sono costosi, ingombranti e necessitano di un circuito analogico per la lettura dei dati. Con l'Industria 4.0 sono nati i primi sensori MEMS (micro-electromechanical systems), circuiti integrati digitali che sono economici, sono poco ingombranti, non hanno bisogno di schermature dei cavi per la natura digitale del segnale, e molti permettono anche la raccolta di dati in più di un asse; il sensore usato nel progetto è a 6 assi (3 per l'accelerazione e 3 per il giroscopio) \cite{ism330bx_datasheet}.
+Per raccogliere questi dati vibrazionali si ha bisogno di un sensore; i primi sensori vibrazionali erano trasduttori piezoelettrici analogici, che sono costosi, ingombranti e necessitano di un circuito analogico per la lettura dei dati. Con l'Industria 4.0 sono nati i primi sensori MEMS (micro-electromechanical systems), circuiti integrati digitali che sono economici, poco ingombranti, non hanno bisogno di schermature dei cavi per la natura digitale del segnale, e molti permettono anche la raccolta di dati in più di un asse; il sensore usato nel progetto è a 6 assi (3 per l'accelerazione e 3 per il giroscopio) \cite{ism330bx_datasheet}.
 
 \subsection{Limiti dell'analisi nel dominio del tempo}
 Ci sono vari metodi statistici nel dominio del tempo per trovare anomalie nelle vibrazioni come RMS, valore di picco, fattore di cresta o curtosi, tuttavia questi metodi non sono efficaci a localizzare guasti a bassa energia in fase nascente. Per questo passiamo al dominio delle frequenze usando trasformazioni di Fourier a breve termine (STFT) \cite{lyons2010dsp}, che consentono di osservare il cambio delle frequenze caratteristiche al variare del tempo.
@@ -30,13 +30,13 @@ Ci sono vari metodi statistici nel dominio del tempo per trovare anomalie nelle 
 		\caption{Segnale con anomalia nel dominio delle frequenze STFT}
 		\label{fig:stftanomaly}
 	\end{subfigure}
-	\caption{Confronto tra l'analisi temporale e la trasformata STFT in presenza di anomalia.}
+	\caption{Confronto tra l'analisi temporale \ref{fig:timesignalanomaly} e la trasformata STFT \ref{fig:stftanomaly} in presenza di anomalia.}
 	\label{fig:confronto_tempo_stft}
 \end{figure}
 
 \section{Anomaly Detection su un singolo regime}
 L'anomaly detection ha un problema fondamentale nello sviluppo, ovvero l'asimmetria dei dati: i macchinari funzionano senza anomalie per la maggior parte della loro vita, questo implica che durante lo sviluppo di meccanismi di anomaly detection non si hanno esempi di dati anomali, quindi bisogna basarsi completamente su dati non anomali senza dati etichettati di anomalie.
-Per risolvere questo problema si usano modelli AI chiamati autoencoder, usando apprendimento non supervisionato. Durante la fase di apprendimento si danno al modello solo dati non anomali e gli si chiede di ricostruirli tali e quali; tuttavia se ne limita nell'architettura la potenza espressiva negli strati centrali. In questo modo impara a ricostruire segnali specifici, quelli non anomali, e se dopo l'apprendimento si prova a fornirgli dati anomali, esso proverà a ricostruirli cercando di farli ricadere nella struttura dei dati non anomali. Per quantificare l'anomalia si controlla la differenza tra l'input e l'output: se i dati in uscita sono molto diversi dai dati in ingresso significa che quei dati il modello non li ha visti durante l'apprendimento.
+Per risolvere questo problema si usano modelli AI chiamati autoencoder, usando apprendimento non supervisionato. Durante la fase di apprendimento il modello viene addestrato esclusivamente con dati non anomali con lo scopo di di ricostruirli in maniera più fedele possibile; tuttavia se ne limita nell'architettura la potenza espressiva negli strati centrali. In questo modo impara a ricostruire segnali specifici, quelli non anomali, e se dopo l'apprendimento si prova a fornirgli dati anomali, esso proverà a ricostruirli cercando di farli ricadere nella struttura dei dati non anomali. Per quantificare l'anomalia si controlla la differenza tra l'input e l'output: se i dati in uscita sono molto diversi dai dati in ingresso significa che quei dati il modello non li ha visti durante l'apprendimento.
 
 
 \section{Anomaly Detection a Regimi Multipli}
@@ -51,7 +51,7 @@ In questa tesi si usa un'architettura multimodale, ovvero al posto di usare un s
 
 \section{Specifica dei Requisiti di Sistema}
 
-\subsection*{Requisiti Funzionali}
+\subsection{Requisiti Funzionali}
 \begin{itemize}
 	\item \textbf{Acquisizione Continua}: campionamento a 6 assi (accelerometro e giroscopio) con garanzia di zero packet drop tramite FIFO SPI e interrupt hardware.
 	\item \textbf{Estrazione Spettrale STFT}: calcolo locale di spettrogrammi (finestra Hann, overlap 75\%, compressione logaritmica) direttamente sul microcontrollore.
@@ -63,7 +63,7 @@ In questa tesi si usa un'architettura multimodale, ovvero al posto di usare un s
 	\item \textbf{Pipeline MLOps Centralizzata}: ingestione continua dei dati, archiviazione su database, monitoraggio visivo e ricerca automatizzata delle architetture neurali.
 \end{itemize}
 
-\subsection*{Requisiti Non Funzionali}
+\subsection{Requisiti Non Funzionali}
 \begin{itemize}
 	\item \textbf{Determinismo Temporale}: la quantità di dati calcolati (acquisizione dati + STFT + Router + Autoencoder) deve essere in media uguale alla quantità di dati generati dal sensore MEMS.
 	\item \textbf{Vincoli di Memoria e Allocazione Statica}: il firmware deve rispettare i vincoli di SRAM interna ($< 512\,\mathrm{KB}$) per task e dati critici e PSRAM esterna ($8\,\mathrm{MB}$) per tensor arena e buffer audio/vibrazionali.

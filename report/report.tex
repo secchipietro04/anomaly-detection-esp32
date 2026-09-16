@@ -50,6 +50,8 @@
 \usepackage{amssymb}
     \usetikzlibrary{shapes,arrows,positioning,calc,arrows.meta,shapes.geometric,shadows}
 
+% cambia il prefisso di listing in codice
+\renewcommand{\lstlistingname}{Codice}
 % evita che tagli le parole quando deve andare sulla nuova linea
 \hyphenpenalty=10000
 \exhyphenpenalty=10000
@@ -88,6 +90,54 @@
     \newpage
     \if@twocolumn\hbox{}\newpage\fi\fi\fi}
     \setlength{\@fptop}{0pt}
+
+% Configurazione intestazioni: mostra solo il capitolo ed esclude sezioni/sottosezioni
+\def\ps@headings{%
+  \let\@mkboth\markboth
+  \let\@oddhead\@empty\let\@evenhead\@empty
+  \unless\ifTOPfolioinhead
+    \ifTOPnocenterfolio
+      \def\@oddfoot{\makebox[\textwidth][r]{\scshape\lapagina}}%
+      \def\@evenfoot{\makebox[\textwidth][l]{\scshape\lapagina}}%
+    \else
+      \def\@oddfoot{\makebox[\textwidth][c]{\scshape\lapagina}}%
+      \def\@evenfoot{\makebox[\textwidth][c]{\scshape\lapagina}}%
+    \fi
+    \def\@oddhead{\setbox\@intesta\hbox{\footnotesize\slshape\leftmark}%
+      \ifdim\wd\@intesta>\textwidth \headWarn{\chapter}\fi
+      \ifTOPnocenterhead
+        \underline{\makebox[\textwidth][r]{\footnotesize\slshape\strut\leftmark}}%
+      \else
+        \underline{\makebox[\textwidth][c]{\footnotesize\slshape\strut\leftmark}}%
+      \fi}%
+    \def\@evenhead{\setbox\@intesta\hbox{\footnotesize\slshape\leftmark}%
+      \ifdim\wd\@intesta>\textwidth \headWarn{\chapter}\fi
+      \ifTOPnocenterhead
+        \underline{\makebox[\textwidth][r]{\footnotesize\slshape\strut\leftmark}}%
+      \else
+        \underline{\makebox[\textwidth][c]{\footnotesize\slshape\strut\leftmark}}%
+      \fi}%
+  \else
+    \let\@oddfoot\@empty\let\@evenfoot\@empty
+    \def\@oddhead{\setbox\@intesta\hbox{\footnotesize\slshape\leftmark}%
+      \ifdim\wd\@intesta>\textwidth \headWarn{\chapter}\fi
+      \ifTOPnocenterhead
+        \underline{\makebox[\textwidth][r]{\footnotesize\slshape\strut\leftmark}}\rlap{\quad\scshape\lapagina}%
+      \else
+        \underline{\makebox[\textwidth][c]{\footnotesize\slshape\strut\leftmark}}\rlap{\quad\scshape\lapagina}%
+      \fi}%
+    \def\@evenhead{\setbox\@intesta\hbox{\footnotesize\slshape\leftmark}%
+      \ifdim\wd\@intesta>\textwidth \headWarn{\chapter}\fi
+      \ifTOPnocenterhead
+        \underline{\llap{\scshape\lapagina\quad}\makebox[\textwidth][l]{\footnotesize\slshape\strut\leftmark}}%
+      \else
+        \underline{\llap{\scshape\lapagina\quad}\makebox[\textwidth][c]{\footnotesize\slshape\strut\leftmark}}%
+      \fi}%
+  \fi
+  \def\chaptermark##1{\markboth{##1}{##1}}%
+  \def\sectionmark##1{}%
+  \def\subsectionmark##1{}%
+}
 \makeatother
 
 
@@ -132,6 +182,7 @@
 %\cleardoublepage
 \tableofcontents
 \cleardoublepage
+\mainmatter
 \pagenumbering{arabic}
 \setcounter{page}{1}
 \addcontentsline{toc}{chapter}{Introduzione}
